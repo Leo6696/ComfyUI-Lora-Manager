@@ -1,353 +1,188 @@
-# ComfyUI LoRA Manager
+# ComfyUI LoRA Manager Enhanced / 增强版
 
-> **Revolutionize your workflow with the ultimate LoRA companion for ComfyUI!**
+> A community enhancement fork focused on metadata recovery, safe Civitai filename restoration, and dependable management of large local model libraries.
+>
+> 面向大型本地模型库的社区增强分支，重点解决元数据恢复、Civitai 作者文件名安全还原，以及批量管理过程缺少反馈的问题。
 
-[![Discord](https://img.shields.io/discord/1346296675538571315?color=7289DA&label=Discord&logo=discord&logoColor=white)](https://discord.gg/vcqNrWVFvM)
-[![Release](https://img.shields.io/github/v/release/willmiao/ComfyUI-Lora-Manager?include_prereleases&color=blue&logo=github)](https://github.com/willmiao/ComfyUI-Lora-Manager/releases)
-[![Release Date](https://img.shields.io/github/release-date/willmiao/ComfyUI-Lora-Manager?color=green&logo=github)](https://github.com/willmiao/ComfyUI-Lora-Manager/releases)
+[中文说明](#中文说明) · [English](#english) · [完整增量记录](CUSTOM_CHANGES.md)
 
-A comprehensive toolset that streamlines organizing, downloading, and applying LoRA models in ComfyUI. With powerful features like recipe management, checkpoint organization, and one-click workflow integration, working with models becomes faster, smoother, and significantly easier. Access the interface at: `http://localhost:8188/loras`
+## 原项目与署名 / Upstream and credits
 
-![Interface Preview](https://github.com/willmiao/ComfyUI-Lora-Manager/blob/main/static/images/screenshot.png)
+本项目是 [willmiao/ComfyUI-Lora-Manager](https://github.com/willmiao/ComfyUI-Lora-Manager) 的增强分支。LoRA Manager 原有的浏览、下载、配方、Checkpoint 管理、工作流集成等能力均来自原项目；请前往以下链接查看原版的完整功能、教程、Wiki、发行版和作者信息：
 
-## 📺 Tutorial: One-Click LoRA Integration
-Watch this quick tutorial to learn how to use the new one-click LoRA integration feature:
+This repository is an enhancement fork of [willmiao/ComfyUI-Lora-Manager](https://github.com/willmiao/ComfyUI-Lora-Manager). Browsing, downloading, recipes, checkpoint management, workflow integration, and the other core LoRA Manager features come from the upstream project. Refer to the links below for the full original feature set, tutorials, releases, and author information.
 
-[![One-Click LoRA Integration Tutorial](https://github.com/willmiao/ComfyUI-Lora-Manager/blob/main/static/images/video-thumbnails/getting-started.jpg)](https://youtu.be/hvKw31YpE-U)
+- [原项目 / Original project](https://github.com/willmiao/ComfyUI-Lora-Manager)
+- [原版 README / Upstream README](https://github.com/willmiao/ComfyUI-Lora-Manager#readme)
+- [Wiki](https://github.com/willmiao/ComfyUI-Lora-Manager/wiki)
+- [Releases](https://github.com/willmiao/ComfyUI-Lora-Manager/releases)
 
-## 🌐 Browser Extension
-Enhance your Civitai browsing experience with our companion browser extension! See which models you already have, download new ones with a single click, and manage your downloads efficiently.
+本 README 只介绍此 fork 相对原版增加或修改的内容。
 
-![LM Civitai Extension Preview](https://raw.githubusercontent.com/wiki/willmiao/ComfyUI-Lora-Manager/wiki-images/civitai-models-page.png)
-
-<div>
-  <a href="https://chromewebstore.google.com/detail/lm-civitai-extension/capigligggeijgmocnaflanlbghnamgm?utm_source=item-share-cb" style="display: inline-block; background-color: #4285F4; color: white; padding: 8px 16px; text-decoration: none; border-radius: 4px; font-weight: bold; margin: 10px 0;">
-    <img src="https://www.google.com/chrome/static/images/chrome-logo.svg" width="20" style="vertical-align: middle; margin-right: 8px;"> Get Extension from Chrome Web Store
-  </a>
-</div>
-
-<div id="firefox-install" class="install-ok"><a href="https://github.com/willmiao/lm-civitai-extension-firefox/releases/latest/download/extension.xpi">📦 Install Firefox Extension (reviewed and verified by Mozilla)</a></div>
-
-📚 [Learn More: Complete Tutorial](https://github.com/willmiao/ComfyUI-Lora-Manager/wiki/LoRA-Manager-Civitai-Extension-(Chrome-Extension))
+This README documents only the additions and behavioral changes provided by this fork.
 
 ---
 
-## 🤝 Supporter Recognition
+## 中文说明
 
-I'm incredibly grateful to everyone who has supported the development of this project. Seeing so many people value my work is the best motivation I could ask for. Your trust and support have played a vital role in shaping this tool into what it is today, and I want to personally recognize those who have helped make it possible.
+### 这个增强版解决什么问题
 
-<!-- SUPPORTERS-START -->
+当本地有大量 LoRA、Checkpoint 和 Embedding 时，原版的一些边缘行为会变成明显痛点：Civitai 查询失败一次后持续跳过、手动改名或移动后缓存与 sidecar 失联、批量操作等待时间长却看不到具体进度，以及缺少可信的批量文件名整理方式。
 
-### 🌟 Special Thanks
+这个分支针对这些问题增加了以下能力。
 
-**dispenser**, **EbonEagle**, **DanielMagPizza**, **Scott R**
+### 1. 可恢复、可重试的 Civitai 元数据刷新
 
-### 💖 Supporters (855)
+- 新增“重试跳过项”，只重新处理此前标记为未找到的模型，不必重扫整个模型库。
+- 强制重试会绕过旧的 `not found` 负缓存，失败一次不会永久跳过。
+- sidecar 缺失时复用缓存 SHA；必要时重新计算 SHA，再尝试恢复模型身份。
+- Hugging Face 来源的模型只要 SHA 能被 Civitai 识别，也可以补齐 Civitai 元数据。
+- 修复响应缺少 `sha256` 字段时直接报错的问题。
+- 核心元数据先落盘，再处理可选预览资源；预览 CDN 故障不会丢掉已经查到的元数据。
+- 预览阶段采用 15 秒总时限，失败后跳过预览并继续，不再因为失效视频链接等待数分钟。
 
-<details>
-<summary>Click to view all awesome supporters</summary>
-<br>
+### 2. 基于精确 SHA 的安全智能改名
 
-megakirbs, Brennok, 2018cfh, Insomnia Art Designs, Rob Williams, Arlecchino Shion, Charles Blakemore, $MetaSamsara, W+K+White, stone9k, Gingko Biloba, Kiba, onesecondinosaur, Christian Byrne, DM, Sen314, Estragon, wackop, Phil, Carl G., Dsperado, Rosenthal, ClockDaemon, Francisco Tatis, Tobi_Swagg, Andrew Wilson, Greybush, Ricky Carter, JongWon Han, VantAI, Michael Wong, Illrigger, Tom Corrigan, JackieWang, FreelancerZ, fnkylove, Robert Stacey, Edgar Tejeda, Liam MacDougal, Polymorphic Indeterminate, Sterilized, Dogwalkerbr, Skalabananen, Marc Whiffen, Birdy, itismyelement, Mozzel, quarz, Reno Lam, jean jahren, JSST, sig, J\B/ 8r0wns0n, Snaggwort, MKULTRA, Baekdoosixt, Jonathan Ross, KD, Omnidex, Nazono_hito, daniel dove, Tyler Trebuchon, Release Cabrakan, JW Sin, Alex, SG, carozzz, James Dooley, zenbound, Buzzard, jmack, Adam Shaw, Mark Corneglio, SarcasticHashtag, RedrockVP, James Todd, Wicked Choices by ASLPro3D, Steven Pfeiffer, レプサイ, Timmy, Johnny, Tak, Lisster, runte3221, Big Red, whudunit, dl0901dm, Yushio, Vik71it, Bishoujoker, Echo, Lilleman, PM, Todd Keck, Briton Heilbrun, wildnut, Aleksander Wujczyk, AM Kuro, Fraser Cross, BadassArabianMofo, Pascal Dahle, Greg, MiraiKuriyamaSy, otaku fra, lmsupporter, andrew.tappan, Takkan, zounic, wfpearl, ElitaSSJ4, Matt+J, Jack B Nimble, Melville Parrish, Lustre, bh, Jwk0205, Marlon Daniels, Starkselle, Aaron Bleuer, LacesOut!, greebles, Some Guy Named Barry, Resist's Creations - Spicy Edition 🔥, M Postkasse, Wolffen, Jacob Hoehler, FinalyFree, Matt Wenzel, Weasyl, Lex Song, Cory Paza, Gonzalo Andre Allendes Lopez, Jimmy Ledbetter, Luc Job, Philip Hempel, corde, nwalker94, dan, aai, Tori, Ran C, ViperC, Sangheili460, MagnaInsomnia, Akira_HentAI, Karl P., Adam Taylor, Weird_With_A_Beard, N/A, The Spawn, graysock, Pozadine1, Qarob, AIGooner, Luc, ProtonPrince, Greenmoustache, fancypants, John+Edwards, Joboshy, Digital, JaxMax, Bohemian Corporal, contrite831, Dan, Bro Xie, batblue, carey6409, Olive, 太郎 ゲーム, jinxedx, AELOX, Gooohokrbe, Dankin-Pics, Nicfit23, Cristian Vazquez, wamekukyouzin, OldBones, drum matthieu, Dogmaster, Frank Nitty, Magic Noob, Christopher Michel, Zach Gonser, Serge Bekenkamp, DougPeterson, LeoZero, Antonio Pontes, nahinahi9, Kevin John Duck, Dustin Chen, Blackfish95, Mouthlessman, Paul Kroll, Penfore, Bas Imagineer, Gordon Cole, AbstractAss, Dušan Ryban, decoy, DiffDuck, elu3199, Hasturkun, Jon Sandman, Ubivis, CloudValley, thesoftwaredruid, wundershark, mr_dinosaur, Tyrswood, Ray Wing, Ranzitho, Gus, MJG, David LaVallee, linnfrey, Jackthemind, griffin+dahlberg, jeaness, takyamtom, Josef Lanzl, Nerezza, yer fey, Error_Rule34_Not_found, aezin, jcay015, Erik Lopez, Roslynd, Mateo Curić, Geolog, Neco28, Cosmosis, Eris3D, David Ortega, FloPro4Sho, a _, Jeff, Bruce, Steven Owens, James Coleman, Kevin Christopher, Chad Idk, dd, John Statham, sjon kreutz, yuxz69, LarsesFPC, Metryman55, esthe, AlexDuKaNa, 地獄の禄, ae, Tr4shP4nda, Gamalonia, capn, Joseph, Mirko Katzula, dan, Piccio08, kumakichi, cppbel, Moon Knight, Kland, Hailshem, Naomi Hale Danchi, epicgamer0020690, IamAyam, Andrew, Brian M, Robert Wegemund, sanborondon, confiscated Zyra, Taylor Funk, Thought2Form, Gerald Welly, Kevin Picco, Sadlip, Tee Gee, tarek helmi, Max Marklund, m, Pierce McBride, Joshua Gray, Pronredn, Mikko Hemilä, Jamie Ogletree, Temikus, Michael Taylor, lh qwe, Martial, conner, Michael Anthony Scott, Emil Andersson, Ouro Boros, Atilla Berke Pekduyar, Princess Bright Eyes, Decx _, Yuji Kaneko, Rops Alot, Sam, Ace Ventura, 四糸凜音, Xeeosat, Douglas Gaspar, George, dw, WRL_SPR, momokai, 몽타주, kudari, ken, Crocket, Joshua Porrata, keemun, SuBu, RedPIXel, Wind, Nexus, Ramneek“Guy”Ashok, squid_actually, Nat_20, Edward Weeks, kyoumei, RadStorm04, JohnDoe42054, BillyHill, emyth, chriphost, KitKatM, socrasteeze, OrganicArtifact, MudkipMedkitz, deanbrian, Alex Wortman, Cody, emadsultan, gzmzmvp, Richard, 奚明 刘, Littlehuggy, Aberr, Gregory Kozhemiak, 준희 김, Brian Buie, Eric Whitney, Joey Callahan, Ivan Tadic, Tomohiro Baba, Mike Simone, Noora, John J Linehan, Mattssn, Elliot E, Morgandel, Theerat Jiramate, Noah, Jacob McDaniel, X, Sloan Steddy, Artokun, hexxish, Derek Baker, Steam Steam, NICHOLAS BAXLEY, CryptoTraderJK, Davaitamin, Nathan, Ed Wang, tedcor, Fotek Design, Nihongasuki, MadSpin, FrxzenSnxw, inbijiburu, Nick “Loadstone” D, starbugx, dc7431, ResidentDeviant, Ginnie, Raku, InformedViewz, CHKeeho80, Bubbafett, leaf, Vir, Skyfire83, Adam Rinehart, Pitpe11, TheD1rtyD03, moonpetal, g9p0o, Pkrsky, TheHolySheep, Monte Won, SpringBootisTrash, carsten, ikok, DarkRoast, Nasty+Hobbit, letzte, Sora+Yori, lrdchs2, Duk3+Rand0m, Nathen+Choi, T, David Schenck, Wolfe7D1, Draven T, elleshar666, ACTUALLY_the_Real_Willem_Dafoe, Михал Михалыч, Aquatic Coffee, Kauffy, ethanfel, Focuschannel, Edward Kennedy, Nick Kage, Vane Holzer, psytrax, Cyrus Fett, Anthony Faxlandez, battu, Xenon Xue, notedfakes, Michael Scott, Pat Hen, Saya, Jordan Shaw, Wes Sims, Donor4115, g unit, Jimmy Borup, Filippo Ferrari, JC, Prompt Pirate, uwutismxd, zenobeus, ryoma, Whitepinetrader, Stryker, smart.edge5178, Menard, SomeDude, nanana, raf8osz, Karru, ChaChanoKo, redcarrot, ghoulars, null, Beau, powerbot99, Fthehappy, Ko-fi+Supporter, J, Alan+Cano, FeralOpticsAI, Pavlaki, Doug+Rintoul, Noor, Yorunai, quantenmecha, Jason+Nash, cocona, blikkies, JBsuede, Time Valentine, Shock Shockor, りん あめ, Matt, Goldwaters, Zude, Frogmilk, SPJ, Kyler, Kor, Bryan Rutkowski, Justin Blaylock, aRtFuL_DodGeR, TenaciousD, Dmitry Ryzhov, Edward Ten Eyck, Billy Gladky, Probis, Solixer, Pete Pain, ItsGeneralButtNaked, RHopkirk, jinksta187, robin.kok., Manu Thetug, Maxim, Karlanx, Lyavph, operationancut, Youguang, andrewzpong, BossGame, lrdchs, Tree Tagger, Inversity, AIVORY3D, Kevinj, Mitchell Robson, POPPIN, 2turbo, Dmitry+Viznesenskiy, tanjin90, sternenkrieger, Pascalou, Patrick+Bryan, lighthawke, low9, Winged, YassineKhaled, Y, MatteKey, Flob, ShiroSenpai, Inkognito, G, Tan+Huynh, Bob+Barker, D, Dark_Pest, Eldithor, Alex, BillyBoy84, Buecyb99, Welkor, dubious1one, Tú Nguyễn Lý Hoàng, shira1011, moranqianlong, Kalli Core, Ben D, G, Ronan Delevacq, Christian Schäfer, Dave Abraham, Joaquin Hierrezuelo, Locrospiel, Sean voets, Jarrid Lee, Poophead27 Blyat, Joseph Hanson, John Rednoulf, Kyron Mahan, Mythspire, Boba Smith, TBitz33, Anonym dkjglfleeoeldldldlkf, MR.Bear, somethingtosay8, Ezokewn, ivistorm, SendingRavens, Sauv, Steven, JackJohnnyJim, Khánh Đặng, Michael Docherty, Ted Cart, Sage Himeros, Zeeble, Paul Hartsuyker, elitassj, Tigon, Tania Nayelli Fernandez, Draconach, Jacob Winter, Ryan Presley Ng, Andrew Wilkinson, David, Meilo, Dkom22, shinonomeiro, Snille, MaartenAlbers, khanh duy, xybrightsummer, jreedatchison, PhilW, Marcus thronico, Janik, Cruel, MRBlack, Kiyoe, humptynutz, michael.isaza, Kalnei, dg, Scott, Muratoraccio, D, Gold_miner_ego, IshouI;_;, Monix, Trolinka, PredragR, Clauzmak, Nerick, SundayRage, matter, SRCRCOSS, imer, Akkas+Haque, Kachac, SAVEagleBasement, Kevin+Isom, Rune+Osnes, you+halo9, cloudghost, Yongkwan+Lee, PoorStudent, lucites, Alex+Zaw, Mobius2020, ExLightSaber, YaboiRay, nickname, Sildoren, Darv, Seon+Song, Somebody, Balut+Omelette, eriick, Lev+Lanevskiy, Jacky+Ho, generic404, abattoirblues, zounik, 4IXplr0r3r, hayden, Obsidian.Studios, ahoystan, Zomba Mann, Aquaneo, edk, Wolf and Fox Legends, Neko Desco, Ninja Tom, Vinarus, Josh Snyder, ja s, Leslie Andrew Ridings, Doug Mason, scoreswazey, Owen Gwosdz, Room Light, Patryk Serious, AZ Party Oasis, Devil Lude, Snorklebort, David Murcko, TheFusion, Jack Dole, matt, 3zS4QNQ4, Terminuz, max blo, Matt M., Ivan Imes, J M, Bouya shaka, Jack Lawfield, Borte, Maso, yyuvuvu, Eric Ketchum, Nomki, Kevin Wallace, ChicRic, BastardSama, mercur, SkibidiRizzler, Never_M, Kalle Björk, Yavizu3d, Yves Poezevara, Teriak47, Just me, Raf Stahelin, Nacho Ferrando, Вячеслав Маринин, Marcos Tortosa Carmona, Cola Matthew, OniNoKen, Iain Wisely, Zertens, NOHOW, Apo, nekotxt, choowkee, Clusters, ibrahim, Highlandrise, philcoraz, mztn, ImagineerNL, MrAcrtosSursus, al300680, pixl, Robin, chahknoir, nd, keno94d, James Melzer, Bartleby, Renvertere, Rahuy, Hermann003, D, Foolish, RevyHiep, Captain_Swag, obkircher, gwyar, ResidentDeviant, D, edgecase, Neoxena, mrmhalo, Maarten Harms, Israel, SelfishMedic, adderleighn, EnragedAntelope, yarsev, M+Alsulaiti, Mark+Staaf, Michael+Fürmann, Aether, GhostyGhost, JACKY, Jesse, daga, Somebody, Jasper, megameganck, thomasand01, Shiba+Sama, miduzza, KB, shw, Celestial+Kitten, bakeliteboy, TequiTequi, Homero+Banda, Nick, Jim, JoL, YoruHime, Srdb, jcx29, Drizzly, Nebuleux, Join+Chun, GDS+DEV, 4rt+r3d, Somebody, Somebody, Crescent~San, AiGirlTS, datasl4ve, Somebody, koopa990, The+Forgetful+Dev, Mateusz+Kosela, Bula, KUJYAKU, Coeur+de+cochon, han b, Nico, Maximilian Krischan, Banana Joe, proto merp, _ G3n, Brandon Thomas, Donovan Jenkins, Hans Meier, Dustin Hendel, sicarius, Michael Eid, Liberation, Bob barker, karim ben brik, Elemnt, Bradley Turner, Michael Zhu, Nemisu, Seraphy, 雨の心 落, AllTimeNoobie, swra, JollRodrigo, jumpd, John C, Rim, Oliverfish, yfx507, uruksayshi, Jairus Knudsen, Xan Dionysus, Nathan lee, nk8, lylepaul, Middo, Forbidden Atelier, Thomas Sankowski, DrB, Nimhloth, Adictedtohumping, Moneymaker412K, vinter, Towelie, Jean-françois SEMA, Andrew Ly, Slacks, Glenn Hoetker, john Greene, Faburizu, jimyjomson, JaeHyun Jang, Michael Hicks, Homero Banda, Chase Kwon, Bob Ling, Inyoshu, Chad Barnes, MadGod, Adam Gardner, inusanorthcape, James Ming, vanditking, kripitonga, Rizzi, nimin, OMAR LUCIANO, Somebody, CoffeeMage, Ken+Suzuki, hannibal, Jo+Example, BrentBertram, eumelzocker, dxjaymz, L C, Dude, Somebody, CK
+适用于 LoRA、Checkpoint 和 Embedding。
 
-</details>
+- 优先恢复 Civitai 当前页面显示的作者上传文件名，而不是根据模型标题或精度标签自行拼名字。
+- 必须先通过 SHA256 精确确认文件身份，避免不同精度、架构或量化版本串名。
+- 同一 SHA 对应多个上传名时，根据当前文件名的关键词覆盖度选择候选。
+- 检查 `I2V/T2V`、`FP8/BF16/FP16`、`Q4/Q6/Q8`、rank 等技术关键词冲突。
+- `lora.safetensors` 等无描述性的通用上传名不会覆盖现有名称。
+- 目标文件已存在、候选不唯一或批次内重名时不会覆盖文件。
+- 支持全库、多选和单模型入口；执行前显示改名预览。
+- 模型、预览和 `.metadata.json` sidecar 一起迁移，并支持撤销本批次改名。
 
-<!-- SUPPORTERS-END -->
+### 3. 外部改名或移动后的自动修复
 
+- 扫描时通过唯一 SHA 识别被手动改名或移动的模型。
+- 将旧缓存记录重新关联到新路径，减少重复下载和重复查询。
+- 安全合并同 SHA 的孤立 sidecar，尽量保留标签、备注、收藏、触发词和 Civitai 身份。
+- 目标 sidecar 属于不同 SHA 时拒绝合并，避免污染另一个模型。
 
+### 4. 更清楚的批量操作进度
 
-## **⚠ Important Note**: To use the CivitAI download feature, you'll need to:
+- 内置“移动到文件夹”显示当前项目、已完成数和总数。
+- 智能改名显示 `已完成/总数 · 已用时间`，不再只有不确定状态的转圈动画。
+- 智能改名查询最多使用 3 路受控并发，并合并重复请求、短期缓存查询结果。
+- 任务进度带独立 ID，多页面同时操作不会互相覆盖。
 
-1. Get your CivitAI API key from your profile settings
-2. Add it to the LoRA Manager settings page
-3. Save the settings
+### 安装
 
----
-
-## Key Features
-
-- 🚀 **High Performance**
-  - Fast model loading and browsing
-  - Smooth scrolling through large collections
-  
-- 🌐 **Rich Model Integration**
-  - Direct download from CivitAI
-  - Preview images and videos
-  - Model descriptions and version selection
-  - Trigger words at a glance
-  - One-click workflow integration with preset values
-  
-- 🔄 **Checkpoint Management**
-  - Scan and organize checkpoint models
-  - Filter and search your collection
-  - View and edit metadata
-  - Clean up and manage disk space
-  
-- 🧩 **LoRA Recipes**
-  - Save and share favorite LoRA combinations
-  - Preserve generation parameters for future reference
-  - Quick application to workflows
-  - Import/export functionality for community sharing
-  
-- 💻 **User Friendly**
-  - One-click access from ComfyUI menu
-  - Context menu for quick actions
-  - Custom notes and usage tips
-  - Multi-folder support
-  - Configurable mature blur threshold (`PG13` / `R` / `X` / `XXX`, default `R+`)
-    - Example: setting threshold to `PG13` blurs `PG13`, `R`, `X`, and `XXX` previews when blur is enabled
-  - Visual progress indicators during initialization
-
----
-
-## Installation
-
-### Option 1: **ComfyUI Manager** (Recommended for ComfyUI users)
-
-1. Open **ComfyUI**.
-2. Go to **Manager > Custom Node Manager**.
-3. Search for `lora-manager`.
-4. Click **Install**.
-
-### Option 2: **Portable Standalone Edition** (No ComfyUI required)
-
-1. Download the [Portable Package](https://github.com/willmiao/ComfyUI-Lora-Manager/releases/download/v1.0.10/lora_manager_portable.7z)
-2. Copy the provided `settings.json.example` file to create a new file named `settings.json` in `comfyui-lora-manager` folder.
-3. Edit the new `settings.json` to include your correct model folder paths and CivitAI API key
-   - Set `"use_portable_settings": true` if you want the configuration to remain inside the repository folder instead of your user settings directory.
-4. Run run.bat
-    - To change the startup port, edit `run.bat` and modify the parameter (e.g. `--port 9001`)
-
-### Option 3: **Manual Installation**
+新安装：
 
 ```bash
-git clone https://github.com/willmiao/ComfyUI-Lora-Manager.git
-cd ComfyUI-Lora-Manager
-pip install -r requirements.txt
+cd /path/to/ComfyUI/custom_nodes
+git clone https://github.com/Leo6696/ComfyUI-Lora-Manager.git comfyui-lora-manager
+cd comfyui-lora-manager
+python -m pip install -r requirements.txt
 ```
 
-## Usage
+仓库默认分支 `main` 就是增强版，不需要额外执行 `git switch`。安装后重启 ComfyUI，通过菜单打开 LoRA Manager，或访问：
 
-1. There are two ways to access the LoRA manager:
-   - Click the "Launch LoRA Manager" button in the ComfyUI menu
-   - Visit http://localhost:8188/loras directly
-2. From the interface, you can:
-   - Browse and organize your LoRA models
-   - Download models directly from CivitAI
-   - Automatically fetch or manually set preview images
-   - View and copy trigger words associated with each LoRA
-   - Add personal notes and usage tips
-3. To use LoRAs in your workflow:
-   - Add the "Lora Loader (LoraManager)" node to your workflow
-   - Select a LoRA in the manager interface
-   - Click copy button or use right-click menu "Copy LoRA syntax"
-   - Paste into the Lora Loader node's text input
-   - The node will automatically apply preset strength and trigger words
-
-### Wildcards for TextLM / PromptLM
-
-`Text (LoraManager)` and `Prompt (LoraManager)` support `/wildcard` autocomplete plus runtime wildcard expansion.
-
-- Wildcard files live in `{settings folder}/wildcards/`
-- When you type `/wildcard` and no wildcard files exist yet, the autocomplete dropdown shows the exact folder path and lets you open it
-- Supported formats: `.txt`, `.yaml`, `.yml`, `.json`
-
-Format rules:
-
-- `wildcards/animals/cat.txt` becomes `__animals/cat__`
-- `.txt` files use one option per line
-- YAML / JSON files use nested keys that end in string arrays
-
-Examples:
-
-```txt
-# wildcards/color.txt
-red
-blue
-green
+```text
+http://localhost:8188/loras
 ```
 
-Use it as `__color__`.
-
-```yaml
-# wildcards/colors.yaml
-palette:
-  warm:
-    - red
-    - orange
-```
-
-Use it as `__palette/warm__`.
-
-### Filename Format Patterns for Save Image Node
-
-The Save Image Node supports dynamic filename generation using pattern codes. You can customize how your images are named using the following format patterns:
-
-#### Available Pattern Codes
-
-##### Cross-Node Placeholders (ComfyUI Standard)
-
-- `%NodeTitle.WidgetName%` - Reference any widget value from any node in your workflow, for example:
-  - `%KSampler.seed%` - The seed from a KSampler node
-  - `%Empty Latent Image.width%` - The width from an Empty Latent Image node
-  - `%KSampler.steps%` - The steps value from a KSampler node
-  - Nodes are matched by their "Node name for S&R" property, then by their title
-
-##### Generation Metadata Placeholders (LoRA Manager)
-
-- `%seed%` - Inserts the generation seed number
-- `%width%` - Inserts the image width
-- `%height%` - Inserts the image height
-- `%pprompt:N%` - Inserts the positive prompt (limited to N characters)
-- `%nprompt:N%` - Inserts the negative prompt (limited to N characters)
-- `%model:N%` - Inserts the model/checkpoint name (limited to N characters)
-
-##### Date/Time Placeholders
-
-- `%date%` - Inserts current date/time as "yyyyMMddhhmmss"
-- `%date:FORMAT%` - Inserts date using custom format with:
-  - `yyyy` - 4-digit year
-  - `yy` - 2-digit year
-  - `MM` - 2-digit month
-  - `dd` - 2-digit day
-  - `hh` - 2-digit hour
-  - `mm` - 2-digit minute
-  - `ss` - 2-digit second
-
-#### Examples
-
-- `image_%seed%` → `image_1234567890`
-- `gen_%width%x%height%` → `gen_512x768`
-- `%model:10%_%seed%` → `dreamshape_1234567890`
-- `%date:yyyy-MM-dd%` → `2025-04-28`
-- `%pprompt:20%_%seed%` → `beautiful landscape_1234567890`
-- `%model%_%date:yyMMdd%_%seed%` → `dreamshaper_v8_250428_1234567890`
-- `%KSampler.seed%` → `1234567890` (resolved from the KSampler node's widget)
-- `%Empty Latent Image.width%x%Empty Latent Image.height%` → `512x768`
-- `%KSampler.seed%_%KSampler.steps%` → `1234567890_25`
-
-You can combine multiple patterns to create detailed, organized filenames for your generated images. Cross-node and metadata placeholders can be mixed freely — for example: `%KSampler.seed%_%model%_%date:yyyyMMdd%`.
-
-##### Organizing Images into Subdirectories
-
-Including a path separator (`/` on all platforms) in the filename prefix creates subdirectories automatically, which is especially powerful when combined with placeholders:
-
-| Pattern | Result |
-|---|---|
-| `%date:yyyy-MM-dd%/%seed%` | Saves to `2025-04-28/1234567890.png` |
-| `%model%/%date:yyMMdd%_%seed%` | Saves to `dreamshaper_v8/250428_1234567890.png` |
-| `%KSampler.seed%/%model%` | Saves to `1234567890/dreamshaper_v8.png` |
-| `%date:yyyy/MM/dd%/%seed%` | Saves to `2025/04/28/1234567890.png` (nested year/month/day) |
-| `%model%/training/%seed%` | Saves to `dreamshaper_v8/training/1234567890.png` |
-
-> **Note**: The subdirectory is created relative to your ComfyUI output directory (configurable via `--output-directory`). Characters invalid for folder names are automatically replaced with underscores.
-
-### Standalone Mode
-
-You can now run LoRA Manager independently from ComfyUI:
-
-1. **For ComfyUI users**:
-   - Launch ComfyUI with LoRA Manager at least once to initialize the necessary path information in the `settings.json` file located in your user settings folder (see paths above).
-   - Make sure dependencies are installed: `pip install -r requirements.txt`
-   - From your ComfyUI root directory, run:
-     ```bash
-     python custom_nodes\comfyui-lora-manager\standalone.py
-     ```
-   - Access the interface at: `http://localhost:8188/loras`
-   - You can specify a different host or port with arguments:
-     ```bash
-     python custom_nodes\comfyui-lora-manager\standalone.py --host 127.0.0.1 --port 9000
-     ```
-
-2. **For non-ComfyUI users**:
-   - Copy the provided `settings.json.example` file to create a new file named `settings.json`. Update the API key, optional language, and folder paths only—the library registry is created automatically when LoRA Manager starts.
-   - Edit `settings.json` to include your correct model folder paths and CivitAI API key (you can leave the defaults until ready to configure them)
-   - Enable portable mode by setting `"use_portable_settings": true` if you prefer LoRA Manager to read and write the `settings.json` located in the project directory.
-   - Install required dependencies: `pip install -r requirements.txt`
-   - Run standalone mode:
-     ```bash
-     python standalone.py
-     ```
-   - Access the interface through your browser at: `http://localhost:8188/loras`
-
-   > **Note:** Existing installations automatically migrate the legacy `settings.json` from the plugin folder to the user settings directory the first time you launch this version.
-
-This standalone mode provides a lightweight option for managing your model and recipe collection without needing to run the full ComfyUI environment, making it useful even for users who primarily use other stable diffusion interfaces.
-
-## Testing & Coverage
-
-### Backend
-
-Install the development dependencies and run pytest with coverage reports:
+更新：
 
 ```bash
-pip install -r requirements-dev.txt
-COVERAGE_FILE=coverage/backend/.coverage pytest \
-  --cov=py \
-  --cov=standalone \
-  --cov-report=term-missing \
-  --cov-report=html:coverage/backend/html \
-  --cov-report=xml:coverage/backend/coverage.xml \
-  --cov-report=json:coverage/backend/coverage.json
+cd /path/to/ComfyUI/custom_nodes/comfyui-lora-manager
+git pull --ff-only origin main
 ```
 
-HTML, XML, and JSON artifacts are stored under `coverage/backend/` so you can inspect hot spots locally or from CI artifacts.
+如需使用 Civitai 查询和下载，请在 LoRA Manager 设置中填写自己的 Civitai API Key。
 
-### Frontend
+### 使用前注意
 
-Run the Vitest coverage suite to analyze widget hot spots:
+- 智能改名默认先生成预览，不会直接修改文件；建议确认计划后再应用。
+- 已有工作流可能引用旧文件名，改名后相应节点可能需要重新选择模型。
+- 不覆盖已存在的目标文件，不修改 ComfyUI 核心文件。
+- 保持与原版数据库、metadata sidecar 和主要页面结构兼容。
+- 更完整的规则、接口与验证记录见 [CUSTOM_CHANGES.md](CUSTOM_CHANGES.md)。
+
+---
+
+## English
+
+### What this fork improves
+
+Large LoRA, checkpoint, and embedding libraries expose a few painful edge cases: a transient Civitai miss can remain permanently skipped, manual moves can detach cached metadata from the actual file, long bulk operations provide too little feedback, and restoring original upload filenames safely is difficult.
+
+This fork adds the following behavior on top of the upstream project.
+
+### 1. Recoverable Civitai metadata refresh
+
+- Retry only models previously skipped as not found without rescanning the whole library.
+- Bypass stale negative cache entries during an explicit retry.
+- Reuse a cached SHA, or recalculate it when needed, to rebuild missing sidecars and model identity.
+- Enrich Hugging Face models with Civitai metadata whenever their SHA is recognized.
+- Handle metadata responses that omit the `sha256` field.
+- Persist core metadata before optional preview downloads.
+- Cap the complete preview stage at 15 seconds; a broken image or video CDN no longer blocks a successful metadata refresh for several minutes.
+
+### 2. SHA-verified smart rename
+
+Available for LoRAs, checkpoints, and embeddings.
+
+- Prefer the exact filename currently published by the Civitai author instead of inventing a name from model labels.
+- Require exact SHA256 identity before suggesting a rename.
+- Resolve multiple filenames for one SHA using keyword coverage from the current local name.
+- Reject technical contradictions involving `I2V/T2V`, `FP8/BF16/FP16`, `Q4/Q6/Q8`, rank, and similar qualifiers.
+- Ignore generic upload names such as `lora.safetensors`.
+- Never overwrite an occupied target or apply an ambiguous/colliding plan.
+- Provide library-wide, selected-item, and per-card actions with a preview-first flow.
+- Move the model, preview, and `.metadata.json` sidecar together, with batch undo support.
+
+### 3. Automatic repair after external moves or renames
+
+- Recognize externally moved or renamed models by unique SHA during scanning.
+- Relink the previous cache identity to the new path.
+- Merge orphaned sidecar metadata only when SHA identity is compatible.
+- Preserve tags, notes, favorites, trigger words, and Civitai identity where possible.
+
+### 4. Actionable progress for bulk operations
+
+- Show current item, completed count, and total count during folder moves.
+- Show `completed/total · elapsed time` during smart rename jobs.
+- Use up to three controlled lookup workers, request coalescing, and short-lived result caches.
+- Scope WebSocket progress by job ID so concurrent pages do not overwrite each other.
+
+### Installation
+
+Fresh installation:
 
 ```bash
-npm run test:coverage
+cd /path/to/ComfyUI/custom_nodes
+git clone https://github.com/Leo6696/ComfyUI-Lora-Manager.git comfyui-lora-manager
+cd comfyui-lora-manager
+python -m pip install -r requirements.txt
 ```
 
----
+The repository's default `main` branch contains the enhanced version, so no extra `git switch` is required. Restart ComfyUI, then open LoRA Manager from the menu or visit:
 
-## Documentation
+```text
+http://localhost:8188/loras
+```
 
-- **[metadata.json Schema Documentation](docs/metadata-json-schema.md)** — Complete reference for the `.metadata.json` sidecar file format, including all fields, types, and examples for LoRA, Checkpoint, and Embedding models.
+Update later with:
 
----
+```bash
+cd /path/to/ComfyUI/custom_nodes/comfyui-lora-manager
+git pull --ff-only origin main
+```
 
-## Contributing
+Configure your own Civitai API key in LoRA Manager settings if you use Civitai metadata or download features.
 
-Thank you for your interest in contributing to ComfyUI LoRA Manager! As this project is currently in its early stages and undergoing rapid development and refactoring, we are temporarily not accepting pull requests.
+### Safety and compatibility
 
-However, your feedback and ideas are extremely valuable to us:
-- Please feel free to open issues for any bugs you encounter
-- Submit feature requests through GitHub issues
-- Share your suggestions for improvements
+- Smart rename is preview-first; review the plan before applying it.
+- Existing workflows may still reference old filenames and can require model reselection after a rename.
+- Occupied targets are never overwritten, and ComfyUI core files are not modified.
+- Existing LoRA Manager databases, metadata sidecars, and primary page structure remain compatible.
+- See [CUSTOM_CHANGES.md](CUSTOM_CHANGES.md) for detailed matching rules, APIs, compatibility notes, and validation results.
 
-We appreciate your understanding and look forward to potentially accepting code contributions once the project architecture stabilizes.
+## Validation
 
----
-
-## Credits
-
-This project has been inspired by and benefited from other excellent ComfyUI extensions:
-
-- [ComfyUI-QwenImageLoraLoader](https://github.com/ussoewwin/ComfyUI-QwenImageLoraLoader) - For the experimental Nunchaku Qwen-Image LoRA support
-- [ComfyUI-SaveImageWithMetaData](https://github.com/nkchocoai/ComfyUI-SaveImageWithMetaData) - For the image metadata functionality
-- [rgthree-comfy](https://github.com/rgthree/rgthree-comfy) - For the lora loader functionality
-
----
-
-## ☕ Support
-
-If you find this project helpful, consider supporting its development:
-
-[![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/pixelpawsai)
-
-[![Patreon](https://img.shields.io/badge/Become%20a%20Patron-F96854.svg?style=for-the-badge&logo=patreon&logoColor=white)](https://patreon.com/PixelPawsAI)
-
-WeChat: [Click to view QR code](https://raw.githubusercontent.com/willmiao/ComfyUI-Lora-Manager/main/static/images/wechat-qr.webp)
-
-## 💬 Community
-
-Join our Discord community for support, discussions, and updates:
-[Discord Server](https://discord.gg/vcqNrWVFvM)
-
----
-## Star History
-
-[![Star History Chart](https://api.star-history.com/svg?repos=willmiao/ComfyUI-Lora-Manager&type=Date)](https://star-history.com/#willmiao/ComfyUI-Lora-Manager&Date)
+The enhancement set has been validated with the backend, native frontend, Vue widget, syntax, metadata recovery, rename collision, undo, external move repair, and real failed-preview scenarios. See [CUSTOM_CHANGES.md](CUSTOM_CHANGES.md) for the recorded results.

@@ -1,6 +1,6 @@
 # LoRA Manager 增强版改动说明
 
-本分支基于官方 [willmiao/ComfyUI-Lora-Manager](https://github.com/willmiao/ComfyUI-Lora-Manager) `v1.1.7`，准确基线提交为 `bf6a614e`。
+本增强功能最初基于官方 [willmiao/ComfyUI-Lora-Manager](https://github.com/willmiao/ComfyUI-Lora-Manager) `v1.1.7`（基线提交 `bf6a614e`）开发；当前 `main` 已合并截至 2026-07-20 的上游更新（`d916375abebb`）。
 
 改动重点是修复大型本地模型库中最影响使用体验的几个问题：Civitai 查询失败后无法重试、模型改名或移动后元数据失联、批量移动缺少反馈，以及缺少安全可靠的批量文件名整理能力。
 
