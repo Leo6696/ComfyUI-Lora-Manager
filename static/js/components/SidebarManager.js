@@ -944,7 +944,8 @@ export class SidebarManager {
     }
 
     saveSelectedFolder() {
-        setStorageItem(`${this.pageType}_activeFolder`, this.selectedPath);
+        const activeFolder = this.selectedPath || null;
+        setStorageItem(`${this.pageType}_activeFolder`, activeFolder);
     }
 
     clearAllDropHighlights() {
@@ -1427,8 +1428,10 @@ export class SidebarManager {
     }
 
     async selectFolder(path) {
-        // Normalize path: null or undefined means root
-        const normalizedPath = (path === null || path === undefined) ? '' : path;
+        // Root is a navigation state, not an empty-folder filter.
+        const isRoot = path === null || path === undefined || path === '';
+        const normalizedPath = isRoot ? '' : path;
+        const activeFolder = isRoot ? null : normalizedPath;
 
         // Update selected path
         this.selectedPath = normalizedPath;
@@ -1439,8 +1442,8 @@ export class SidebarManager {
         this.updateSidebarHeader();
 
         // Update page state
-        this.pageControls.pageState.activeFolder = normalizedPath;
-        setStorageItem(`${this.pageType}_activeFolder`, normalizedPath);
+        this.pageControls.pageState.activeFolder = activeFolder;
+        setStorageItem(`${this.pageType}_activeFolder`, activeFolder);
 
         // Reload models with new filter (loadMoreWithVirtualScroll will scroll to top)
         await this.pageControls.resetAndReload();
@@ -1803,7 +1806,8 @@ export class SidebarManager {
     }
 
     restoreSelectedFolder() {
-        const activeFolder = getStorageItem(`${this.pageType}_activeFolder`);
+        const storageKey = `${this.pageType}_activeFolder`;
+        const activeFolder = getStorageItem(storageKey);
         if (activeFolder && typeof activeFolder === 'string') {
             this.selectedPath = activeFolder;
             this.updateTreeSelection();
@@ -1811,6 +1815,10 @@ export class SidebarManager {
             this.updateSidebarHeader();
         } else {
             this.selectedPath = '';
+            if (this.pageControls?.pageState) {
+                this.pageControls.pageState.activeFolder = null;
+            }
+            setStorageItem(storageKey, null);
             this.updateSidebarHeader();
             this.updateBreadcrumbs(); // Always update breadcrumbs
         }

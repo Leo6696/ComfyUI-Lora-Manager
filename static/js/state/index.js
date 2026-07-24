@@ -72,6 +72,11 @@ export function createDefaultSettings() {
     };
 }
 
+function getActiveFolder(pageType) {
+    const folder = getStorageItem(`${pageType}_activeFolder`);
+    return typeof folder === 'string' && folder.length > 0 ? folder : null;
+}
+
 // Load preview versions from localStorage for each model type
 const loraPreviewVersions = getMapFromStorage('loras_preview_versions');
 const checkpointPreviewVersions = getMapFromStorage('checkpoints_preview_versions');
@@ -92,7 +97,7 @@ export const state = {
             isLoading: false,
             hasMore: true,
             sortBy: 'name',
-            activeFolder: getStorageItem(`${MODEL_TYPES.LORA}_activeFolder`),
+            activeFolder: getActiveFolder(MODEL_TYPES.LORA),
             activeLetterFilter: null,
             previewVersions: loraPreviewVersions,
             searchManager: null,
@@ -131,7 +136,7 @@ export const state = {
             isLoading: false,
             hasMore: true,
             sortBy: 'date:desc',
-            activeFolder: getStorageItem('recipes_activeFolder'),
+            activeFolder: getActiveFolder('recipes'),
             searchManager: null,
             searchOptions: {
                 title: true,
@@ -160,7 +165,7 @@ export const state = {
             isLoading: false,
             hasMore: true,
             sortBy: 'name',
-            activeFolder: getStorageItem(`${MODEL_TYPES.CHECKPOINT}_activeFolder`),
+            activeFolder: getActiveFolder(MODEL_TYPES.CHECKPOINT),
             previewVersions: checkpointPreviewVersions,
             searchManager: null,
             searchOptions: {
@@ -198,7 +203,7 @@ export const state = {
             isLoading: false,
             hasMore: true,
             sortBy: 'name',
-            activeFolder: getStorageItem(`${MODEL_TYPES.EMBEDDING}_activeFolder`),
+            activeFolder: getActiveFolder(MODEL_TYPES.EMBEDDING),
             activeLetterFilter: null,
             previewVersions: embeddingPreviewVersions,
             searchManager: null,
