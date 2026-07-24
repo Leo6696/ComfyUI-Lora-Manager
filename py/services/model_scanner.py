@@ -2068,6 +2068,26 @@ class ModelScanner:
             await self._persist_current_cache()
         return updated
 
+    async def update_previews_in_cache(
+        self, updates: List[tuple[str, str, int]]
+    ) -> int:
+        """Apply preview updates in memory and persist the cache once."""
+
+        if self._cache is None or not updates:
+            return 0
+
+        updated_count = 0
+        for file_path, preview_url, preview_nsfw_level in updates:
+            updated = await self._cache.update_preview_url(
+                file_path, preview_url, preview_nsfw_level
+            )
+            if updated:
+                updated_count += 1
+
+        if updated_count:
+            await self._persist_current_cache()
+        return updated_count
+
     async def bulk_delete_models(self, file_paths: List[str]) -> Dict:
         """Delete multiple models and update cache in a batch operation
         

@@ -750,6 +750,16 @@
         "action": "[TODO: Translate] Retry skipped",
         "title": "[TODO: Translate] Retry models previously skipped as not found on Civitai"
       },
+      "repairPreviews": {
+        "title": "Download only missing or disconnected preview images and videos",
+        "action": "Repair previews",
+        "connecting": "Preparing preview repair...",
+        "scanning": "Scanning previews ({scanned}/{total})...",
+        "started": "Found {total} preview(s) to repair",
+        "processing": "Repairing ({completed}/{total}) {name} | Downloaded {downloaded} | Failed {failed}",
+        "cancelled": "Preview repair cancelled",
+        "finished": "Preview repair finished"
+      },
       "skippedOnly": {
         "title": "[TODO: Translate] Show only models excluded from metadata refresh",
         "action": "[TODO: Translate] Skipped only"
@@ -1976,6 +1986,9 @@
       "invalidCharactersRemoved": "Caractères invalides supprimés du nom de fichier",
       "filenameCannotBeEmpty": "Le nom de fichier ne peut pas être vide",
       "renameFailed": "Échec du renommage du fichier : {message}",
+      "previewRepairComplete": "Preview repair: {downloaded} downloaded, {relinked} relinked, {no_remote_media} without remote media, {failed} failed",
+      "previewRepairNone": "All previews are already available",
+      "previewRepairFailed": "Preview repair failed: {message}",
       "moveFailed": "Échec du déplacement du/des modèle(s) : {message}",
       "pleaseSelectRoot": "Veuillez sélectionner un répertoire racine {type}",
       "nameTooLong": "Le nom du modèle est limité à 100 caractères",

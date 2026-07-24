@@ -6,6 +6,7 @@ import { performModelUpdateCheck } from '../../utils/updateCheckHelpers.js';
 import { sidebarManager } from '../SidebarManager.js';
 import { initSortDropdown } from './SortDropdown.js';
 import { modalManager } from '../../managers/ModalManager.js';
+import { translate } from '../../utils/i18nHelpers.js';
 
 /**
  * PageControls class - Unified control management for model pages
@@ -293,6 +294,11 @@ export class PageControls {
             retrySkippedButton.addEventListener('click', () => this.fetchFromCivitai(true));
         }
 
+        const repairPreviewsButton = document.querySelector('[data-action="repair-previews"]');
+        if (repairPreviewsButton) {
+            repairPreviewsButton.addEventListener('click', () => this.repairMissingPreviews());
+        }
+
         const metadataRefreshSkippedFilterBtn = document.getElementById('metadataRefreshSkippedFilterBtn');
         if (metadataRefreshSkippedFilterBtn) {
             metadataRefreshSkippedFilterBtn.addEventListener(
@@ -344,6 +350,136 @@ export class PageControls {
         const updateFilterBtn = document.getElementById('updateFilterBtn');
         if (updateFilterBtn) {
             updateFilterBtn.addEventListener('click', () => this.toggleUpdateAvailableOnly());
+        }
+    }
+
+    async repairMissingPreviews() {
+        if (!this.api?.repairMissingPreviews || !state.loadingManager) return;
+
+        const selectedPaths = state.selectedModels?.size
+            ? Array.from(state.selectedModels)
+            : null;
+        const button = document.querySelector('[data-action="repair-previews"]');
+        if (button) {
+            button.disabled = true;
+            button.setAttribute('aria-busy', 'true');
+        }
+
+        let result = null;
+        try {
+            await state.loadingManager.showWithProgress(async loading => {
+                loading.showCancelButton(() => this.api.cancelTask());
+                result = await this.api.repairMissingPreviews(
+                    selectedPaths,
+                    progress => {
+                        switch (progress.status) {
+                            case 'scanning': {
+                                const scanned = Number(progress.scanned) || 0;
+                                const total = Number(progress.scan_total) || 0;
+                                const percent = total ? Math.min(10, (scanned / total) * 10) : 0;
+                                loading.setProgress(percent);
+                                loading.setStatus(
+                                    translate(
+                                        'loras.controls.repairPreviews.scanning',
+                                        { scanned, total },
+                                        `Scanning previews (${scanned}/${total})...`,
+                                    ),
+                                );
+                                break;
+                            }
+                            case 'started': {
+                                const total = Number(progress.total) || 0;
+                                loading.setProgress(total ? 10 : 100);
+                                loading.setStatus(
+                                    translate(
+                                        'loras.controls.repairPreviews.started',
+                                        { total },
+                                        `Found ${total} preview(s) to repair`,
+                                    ),
+                                );
+                                break;
+                            }
+                            case 'processing': {
+                                const completed = Number(progress.completed) || 0;
+                                const total = Number(progress.total) || 0;
+                                const percent = total ? 10 + (completed / total) * 90 : 100;
+                                loading.setProgress(percent);
+                                loading.setStatus(
+                                    translate(
+                                        'loras.controls.repairPreviews.processing',
+                                        {
+                                            completed,
+                                            total,
+                                            name: progress.current_name || '',
+                                            downloaded: progress.downloaded || 0,
+                                            failed: progress.failed || 0,
+                                        },
+                                        `Repairing (${completed}/${total}) ${progress.current_name || ''} | Downloaded ${progress.downloaded || 0} | Failed ${progress.failed || 0}`,
+                                    ),
+                                );
+                                break;
+                            }
+                            case 'cancelled':
+                                loading.setStatus(
+                                    translate(
+                                        'loras.controls.repairPreviews.cancelled',
+                                        {},
+                                        'Preview repair cancelled',
+                                    ),
+                                );
+                                break;
+                            case 'completed':
+                                loading.setProgress(100);
+                                break;
+                        }
+                    },
+                );
+            }, {
+                initialMessage: translate(
+                    'loras.controls.repairPreviews.connecting',
+                    {},
+                    'Preparing preview repair...',
+                ),
+                completionMessage: translate(
+                    'loras.controls.repairPreviews.finished',
+                    {},
+                    'Preview repair finished',
+                ),
+            });
+
+            if (!result) return;
+            if (result.status === 'cancelled') {
+                showToast('toast.api.operationCancelled', {}, 'info');
+            } else if (!result.candidate_total) {
+                showToast(
+                    'toast.models.previewRepairNone',
+                    {},
+                    'info',
+                    'All previews are already available.',
+                );
+            } else {
+                const level = result.failed || result.no_remote_media ? 'warning' : 'success';
+                showToast(
+                    'toast.models.previewRepairComplete',
+                    result,
+                    level,
+                    `Preview repair: ${result.downloaded || 0} downloaded, ${result.relinked || 0} relinked, ${result.no_remote_media || 0} without remote media, ${result.failed || 0} failed`,
+                );
+            }
+            await this.api.resetAndReload(true);
+        } catch (error) {
+            console.error('Failed to repair previews:', error);
+            showToast(
+                'toast.models.previewRepairFailed',
+                { message: error.message },
+                'error',
+                `Preview repair failed: ${error.message}`,
+            );
+        } finally {
+            if (button) {
+                button.disabled = false;
+                button.removeAttribute('aria-busy');
+            }
         }
     }
 

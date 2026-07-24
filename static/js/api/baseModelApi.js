@@ -391,6 +391,44 @@ export class BaseModelApiClient {
         return result;
     }
 
+    async repairMissingPreviews(filePaths = null, onProgress = null) {
+        let ws = null;
+        const jobId = globalThis.crypto?.randomUUID?.()
+            || `preview-repair-${Date.now()}-${Math.random()}`;
+        try {
+            if (onProgress) {
+                const wsProtocol = window.location.protocol === 'https:' ? 'wss://' : 'ws://';
+                ws = new WebSocket(`${wsProtocol}${window.location.host}${WS_ENDPOINTS.fetchProgress}`);
+                await new Promise((resolve, reject) => {
+                    ws.onopen = resolve;
+                    ws.onerror = () => reject(new Error('Failed to connect to preview repair progress'));
+                });
+                ws.onmessage = event => {
+                    const data = JSON.parse(event.data);
+                    if (data.type === 'preview_repair_progress' && data.job_id === jobId) {
+                        onProgress(data);
+                    }
+                };
+            }
+
+            const response = await fetch(this.apiConfig.endpoints.repairPreviews, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    file_paths: filePaths,
+                    job_id: onProgress ? jobId : null,
+                }),
+            });
+            const result = await response.json();
+            if (!response.ok) {
+                throw new Error(result.error || 'Failed to repair previews');
+            }
+            return result;
+        } finally {
+            ws?.close();
+        }
+    }
+
     replaceModelPreview(filePath) {
         const input = document.createElement('input');
         input.type = 'file';

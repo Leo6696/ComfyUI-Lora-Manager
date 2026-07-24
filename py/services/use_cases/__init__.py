@@ -8,6 +8,7 @@ from .bulk_metadata_refresh_use_case import (
     BulkMetadataRefreshUseCase,
     MetadataRefreshProgressReporter,
 )
+from .bulk_preview_repair_use_case import BulkPreviewRepairUseCase
 from .download_model_use_case import (
     DownloadModelEarlyAccessError,
     DownloadModelUseCase,
@@ -26,6 +27,7 @@ __all__ = [
     "AutoOrganizeUseCase",
     "BulkMetadataRefreshUseCase",
     "MetadataRefreshProgressReporter",
+    "BulkPreviewRepairUseCase",
     "DownloadModelEarlyAccessError",
     "DownloadModelUseCase",
     "DownloadModelValidationError",

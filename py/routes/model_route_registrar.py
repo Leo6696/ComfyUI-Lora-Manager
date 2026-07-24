@@ -33,6 +33,9 @@ COMMON_ROUTE_DEFINITIONS: tuple[RouteDefinition, ...] = (
     RouteDefinition(
         "POST", "/api/lm/{prefix}/set-preview-from-url", "set_preview_from_url"
     ),
+    RouteDefinition(
+        "POST", "/api/lm/{prefix}/repair-previews", "repair_previews"
+    ),
     RouteDefinition("POST", "/api/lm/{prefix}/save-metadata", "save_metadata"),
     RouteDefinition("POST", "/api/lm/{prefix}/add-tags", "add_tags"),
     RouteDefinition("POST", "/api/lm/{prefix}/rename", "rename_model"),

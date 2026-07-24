@@ -727,6 +727,16 @@
         "title": "Retry models previously skipped as not found on Civitai",
         "action": "Retry skipped"
       },
+      "repairPreviews": {
+        "title": "Download only missing or disconnected preview images and videos",
+        "action": "Repair previews",
+        "connecting": "Preparing preview repair...",
+        "scanning": "Scanning previews ({scanned}/{total})...",
+        "started": "Found {total} preview(s) to repair",
+        "processing": "Repairing ({completed}/{total}) {name} | Downloaded {downloaded} | Failed {failed}",
+        "cancelled": "Preview repair cancelled",
+        "finished": "Preview repair finished"
+      },
       "skippedOnly": {
         "title": "Show only models excluded from metadata refresh",
         "action": "Skipped only"
@@ -1979,6 +1989,9 @@
       "smartRenameComplete": "Smart rename complete: {count} model(s) renamed",
       "smartRenameUndoComplete": "Restored {count} model filename(s)",
       "smartRenameFailed": "Smart rename failed: {message}",
+      "previewRepairComplete": "Preview repair: {downloaded} downloaded, {relinked} relinked, {no_remote_media} without remote media, {failed} failed",
+      "previewRepairNone": "All previews are already available",
+      "previewRepairFailed": "Preview repair failed: {message}",
       "moveFailed": "Failed to move model(s): {message}",
       "pleaseSelectRoot": "Please select a {type} root directory",
       "nameTooLong": "Model name is limited to 100 characters",

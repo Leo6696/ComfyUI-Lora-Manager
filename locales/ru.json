@@ -750,6 +750,16 @@
         "action": "[TODO: Translate] Retry skipped",
         "title": "[TODO: Translate] Retry models previously skipped as not found on Civitai"
       },
+      "repairPreviews": {
+        "title": "Download only missing or disconnected preview images and videos",
+        "action": "Repair previews",
+        "connecting": "Preparing preview repair...",
+        "scanning": "Scanning previews ({scanned}/{total})...",
+        "started": "Found {total} preview(s) to repair",
+        "processing": "Repairing ({completed}/{total}) {name} | Downloaded {downloaded} | Failed {failed}",
+        "cancelled": "Preview repair cancelled",
+        "finished": "Preview repair finished"
+      },
       "skippedOnly": {
         "title": "[TODO: Translate] Show only models excluded from metadata refresh",
         "action": "[TODO: Translate] Skipped only"
@@ -1976,6 +1986,9 @@
       "invalidCharactersRemoved": "Недопустимые символы удалены из имени файла",
       "filenameCannotBeEmpty": "Имя файла не может быть пустым",
       "renameFailed": "Не удалось переименовать файл: {message}",
+      "previewRepairComplete": "Preview repair: {downloaded} downloaded, {relinked} relinked, {no_remote_media} without remote media, {failed} failed",
+      "previewRepairNone": "All previews are already available",
+      "previewRepairFailed": "Preview repair failed: {message}",
       "moveFailed": "Не удалось переместить модель(и): {message}",
       "pleaseSelectRoot": "Пожалуйста, выберите корневую папку {type}",
       "nameTooLong": "Название модели ограничено 100 символами",

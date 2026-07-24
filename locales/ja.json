@@ -750,6 +750,16 @@
         "action": "[TODO: Translate] Retry skipped",
         "title": "[TODO: Translate] Retry models previously skipped as not found on Civitai"
       },
+      "repairPreviews": {
+        "title": "Download only missing or disconnected preview images and videos",
+        "action": "Repair previews",
+        "connecting": "Preparing preview repair...",
+        "scanning": "Scanning previews ({scanned}/{total})...",
+        "started": "Found {total} preview(s) to repair",
+        "processing": "Repairing ({completed}/{total}) {name} | Downloaded {downloaded} | Failed {failed}",
+        "cancelled": "Preview repair cancelled",
+        "finished": "Preview repair finished"
+      },
       "skippedOnly": {
         "title": "[TODO: Translate] Show only models excluded from metadata refresh",
         "action": "[TODO: Translate] Skipped only"
@@ -1976,6 +1986,9 @@
       "invalidCharactersRemoved": "ファイル名から無効な文字が削除されました",
       "filenameCannotBeEmpty": "ファイル名を空にすることはできません",
       "renameFailed": "ファイル名の変更に失敗しました：{message}",
+      "previewRepairComplete": "Preview repair: {downloaded} downloaded, {relinked} relinked, {no_remote_media} without remote media, {failed} failed",
+      "previewRepairNone": "All previews are already available",
+      "previewRepairFailed": "Preview repair failed: {message}",
       "moveFailed": "モデルの移動に失敗しました：{message}",
       "pleaseSelectRoot": "{type}ルートディレクトリを選択してください",
       "nameTooLong": "モデル名は100文字に制限されています",

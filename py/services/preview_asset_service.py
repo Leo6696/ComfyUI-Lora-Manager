@@ -37,21 +37,28 @@ class PreviewAssetService:
         metadata_path: str,
         local_metadata: Dict[str, object],
         images: Sequence[Dict[str, object]] | None,
-    ) -> None:
+        *,
+        timeout_seconds: Optional[float] = None,
+    ) -> bool:
         """Best-effort preview fetch with a strict total time limit."""
 
+        timeout = (
+            self._download_timeout_seconds
+            if timeout_seconds is None
+            else max(0.01, float(timeout_seconds))
+        )
         try:
-            await asyncio.wait_for(
+            return await asyncio.wait_for(
                 self._ensure_preview_for_metadata(
                     metadata_path, local_metadata, images
                 ),
-                timeout=self._download_timeout_seconds,
+                timeout=timeout,
             )
         except asyncio.TimeoutError:
             logger.warning(
                 "Preview download timed out after %.1f seconds for %s; "
                 "continuing without a local preview",
-                self._download_timeout_seconds,
+                timeout,
                 metadata_path,
             )
         except Exception as exc:  # pragma: no cover - defensive isolation
@@ -60,22 +67,23 @@ class PreviewAssetService:
                 metadata_path,
                 exc,
             )
+        return False
 
     async def _ensure_preview_for_metadata(
         self,
         metadata_path: str,
         local_metadata: Dict[str, object],
         images: Sequence[Dict[str, object]] | None,
-    ) -> None:
+    ) -> bool:
         """Ensure preview assets exist for the supplied metadata entry."""
 
         if local_metadata.get("preview_url") and os.path.exists(
             str(local_metadata["preview_url"])
         ):
-            return
+            return True
 
         if not images:
-            return
+            return False
 
         settings_manager = get_settings_manager()
         blur_mature_content = bool(
@@ -91,7 +99,7 @@ class PreviewAssetService:
         )
 
         if not first_preview:
-            return
+            return False
 
         base_name = os.path.splitext(os.path.splitext(os.path.basename(metadata_path))[0])[0]
         preview_dir = os.path.dirname(metadata_path)
@@ -99,7 +107,7 @@ class PreviewAssetService:
         preview_url = first_preview.get("url")
 
         if not preview_url:
-            return
+            return False
 
         def extension_from_url(url: str, fallback: str) -> str:
             try:
@@ -131,7 +139,7 @@ class PreviewAssetService:
                 if success:
                     local_metadata["preview_url"] = preview_path.replace(os.sep, "/")
                     local_metadata["preview_nsfw_level"] = nsfw_level
-                    return
+                    return True
         else:
             rewritten_url, rewritten = rewrite_preview_url(preview_url, media_type="image")
             if rewritten:
@@ -143,7 +151,7 @@ class PreviewAssetService:
                 if success:
                     local_metadata["preview_url"] = preview_path.replace(os.sep, "/")
                     local_metadata["preview_nsfw_level"] = nsfw_level
-                    return
+                    return True
 
             extension = ".webp"
             preview_path = os.path.join(preview_dir, base_name + extension)
@@ -151,7 +159,7 @@ class PreviewAssetService:
                 preview_url, use_auth=False
             )
             if not success:
-                return
+                return False
 
             try:
                 optimized_data, _ = self._exif_utils.optimize_image(
@@ -170,10 +178,13 @@ class PreviewAssetService:
                         handle.write(content)
                 except Exception as save_exc:
                     logger.error("Error saving preview image: %s", save_exc)
-                    return
+                    return False
 
             local_metadata["preview_url"] = preview_path.replace(os.sep, "/")
             local_metadata["preview_nsfw_level"] = nsfw_level
+            return True
+
+        return False
 
     async def replace_preview(
         self,

@@ -750,6 +750,16 @@
         "action": "[TODO: Translate] Retry skipped",
         "title": "[TODO: Translate] Retry models previously skipped as not found on Civitai"
       },
+      "repairPreviews": {
+        "title": "Download only missing or disconnected preview images and videos",
+        "action": "Repair previews",
+        "connecting": "Preparing preview repair...",
+        "scanning": "Scanning previews ({scanned}/{total})...",
+        "started": "Found {total} preview(s) to repair",
+        "processing": "Repairing ({completed}/{total}) {name} | Downloaded {downloaded} | Failed {failed}",
+        "cancelled": "Preview repair cancelled",
+        "finished": "Preview repair finished"
+      },
       "skippedOnly": {
         "title": "[TODO: Translate] Show only models excluded from metadata refresh",
         "action": "[TODO: Translate] Skipped only"
@@ -1976,6 +1986,9 @@
       "invalidCharactersRemoved": "תווים לא חוקיים הוסרו משם הקובץ",
       "filenameCannotBeEmpty": "שם הקובץ אינו יכול להיות ריק",
       "renameFailed": "שינוי שם הקובץ נכשל: {message}",
+      "previewRepairComplete": "Preview repair: {downloaded} downloaded, {relinked} relinked, {no_remote_media} without remote media, {failed} failed",
+      "previewRepairNone": "All previews are already available",
+      "previewRepairFailed": "Preview repair failed: {message}",
       "moveFailed": "העברת המודל(ים) נכשלה: {message}",
       "pleaseSelectRoot": "אנא בחר ספריית שורש של {type}",
       "nameTooLong": "שם המודל מוגבל ל-100 תווים",

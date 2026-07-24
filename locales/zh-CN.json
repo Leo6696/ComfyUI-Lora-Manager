@@ -750,6 +750,16 @@
         "action": "重试跳过项",
         "title": "重新查询此前被标记为 Civitai 未找到的模型"
       },
+      "repairPreviews": {
+        "title": "只下载缺失或已断开关联的预览图和预览视频",
+        "action": "补齐预览",
+        "connecting": "正在准备补齐预览...",
+        "scanning": "正在扫描预览（{scanned}/{total}）...",
+        "started": "发现 {total} 个预览需要处理",
+        "processing": "正在补齐（{completed}/{total}）{name}｜已下载 {downloaded}｜失败 {failed}",
+        "cancelled": "已取消补齐预览",
+        "finished": "预览补齐完成"
+      },
       "skippedOnly": {
         "title": "只显示已设置为跳过元数据刷新的模型",
         "action": "只看跳过"
@@ -1993,7 +2003,10 @@
       "bulkTagsReplaceFailed": "批量替换标签失败",
       "smartRenameComplete": "智能改名完成：已重命名 {count} 个模型",
       "smartRenameFailed": "智能改名失败：{message}",
-      "smartRenameUndoComplete": "已恢复 {count} 个模型文件名"
+      "smartRenameUndoComplete": "已恢复 {count} 个模型文件名",
+      "previewRepairComplete": "预览补齐：下载 {downloaded} 个，重新关联 {relinked} 个，远端无媒体 {no_remote_media} 个，失败 {failed} 个",
+      "previewRepairNone": "所有模型的预览都已存在",
+      "previewRepairFailed": "补齐预览失败：{message}"
     },
     "search": {
       "atLeastOneOption": "至少选择一个搜索选项"

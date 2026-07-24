@@ -30,6 +30,7 @@ from ...services.use_cases import (
     AutoOrganizeInProgressError,
     AutoOrganizeUseCase,
     BulkMetadataRefreshUseCase,
+    BulkPreviewRepairUseCase,
     DownloadModelEarlyAccessError,
     DownloadModelUseCase,
     DownloadModelValidationError,
@@ -454,6 +455,13 @@ class ModelManagementHandler:
         self._preview_service = preview_service
         self._tag_update_service = tag_update_service
         self._lifecycle_service = lifecycle_service
+        self._preview_repair_use_case = BulkPreviewRepairUseCase(
+            service=service,
+            metadata_sync=metadata_sync,
+            preview_service=preview_service,
+            metadata_manager=MetadataManager,
+            logger=logger,
+        )
 
     async def delete_model(self, request: web.Request) -> web.Response:
         try:
@@ -826,6 +834,48 @@ class ModelManagementHandler:
         except Exception as exc:
             self._logger.error("Error setting preview from URL: %s", exc, exc_info=True)
             return web.json_response({"success": False, "error": str(exc)}, status=500)
+
+    async def repair_previews(self, request: web.Request) -> web.Response:
+        """Download only missing previews for selected or all cached models."""
+
+        try:
+            data = await request.json() if request.can_read_body else {}
+            file_paths = data.get("file_paths") if isinstance(data, dict) else None
+            job_id = str(data.get("job_id") or "") if isinstance(data, dict) else ""
+            if file_paths is not None and not isinstance(file_paths, list):
+                return web.json_response(
+                    {"success": False, "error": "file_paths must be a list"},
+                    status=400,
+                )
+
+            progress_callback = None
+            if job_id:
+                async def report_progress(progress: Dict[str, object]) -> None:
+                    from ...services.websocket_manager import ws_manager
+
+                    await ws_manager.broadcast(
+                        {
+                            "type": "preview_repair_progress",
+                            "job_id": job_id,
+                            **progress,
+                        }
+                    )
+
+                progress_callback = report_progress
+
+            result = await self._preview_repair_use_case.execute(
+                file_paths,
+                progress_callback=progress_callback,
+            )
+            return web.json_response(result)
+        except Exception as exc:
+            self._logger.error(
+                "Error repairing model previews: %s", exc, exc_info=True
+            )
+            return web.json_response(
+                {"success": False, "error": str(exc)},
+                status=500,
+            )
 
     async def save_metadata(self, request: web.Request) -> web.Response:
         try:
@@ -3019,6 +3069,7 @@ class ModelHandlerSet:
             "relink_civitai": self.management.relink_civitai,
             "replace_preview": self.management.replace_preview,
             "set_preview_from_url": self.management.set_preview_from_url,
+            "repair_previews": self.management.repair_previews,
             "save_metadata": self.management.save_metadata,
             "add_tags": self.management.add_tags,
             "rename_model": self.management.rename_model,
