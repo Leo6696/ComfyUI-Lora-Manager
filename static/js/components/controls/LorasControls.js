@@ -46,6 +46,14 @@ export class LorasControls extends PageControls {
                 return await getModelApiClient().fetchCivitaiMetadata(options);
             },
 
+            repairMissingPreviews: async (filePaths = null, onProgress = null) => {
+                return await getModelApiClient().repairMissingPreviews(filePaths, onProgress);
+            },
+
+            cancelTask: async () => {
+                return await getModelApiClient().cancelTask();
+            },
+
             previewSmartRenames: async (filePaths = null, onProgress = null) => {
                 return await getModelApiClient().previewSmartRenames(filePaths, onProgress);
             },

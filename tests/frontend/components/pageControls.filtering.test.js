@@ -3,12 +3,16 @@ import { describe, it, beforeEach, afterEach, expect, vi } from 'vitest';
 const loadMoreWithVirtualScrollMock = vi.fn();
 const refreshModelsMock = vi.fn();
 const fetchCivitaiMetadataMock = vi.fn();
+const repairMissingPreviewsMock = vi.fn();
+const cancelTaskMock = vi.fn();
 const resetAndReloadMock = vi.fn();
 const getModelApiClientMock = vi.fn();
 const apiClientMock = {
   loadMoreWithVirtualScroll: loadMoreWithVirtualScrollMock,
   refreshModels: refreshModelsMock,
   fetchCivitaiMetadata: fetchCivitaiMetadataMock,
+  repairMissingPreviews: repairMissingPreviewsMock,
+  cancelTask: cancelTaskMock,
 };
 
 const showToastMock = vi.fn();
@@ -70,6 +74,8 @@ beforeEach(() => {
   loadMoreWithVirtualScrollMock.mockResolvedValue(undefined);
   refreshModelsMock.mockResolvedValue(undefined);
   fetchCivitaiMetadataMock.mockResolvedValue(undefined);
+  repairMissingPreviewsMock.mockResolvedValue({ success: true });
+  cancelTaskMock.mockResolvedValue({ success: true });
   resetAndReloadMock.mockResolvedValue(undefined);
   getModelApiClientMock.mockReturnValue(apiClientMock);
   performModelUpdateCheckMock.mockResolvedValue({ status: 'success', displayName: 'LoRA', records: [] });
@@ -606,6 +612,29 @@ describe('FilterManager tag and base model filters', () => {
 });
 
 describe('PageControls favorites, sorting, and duplicates scenarios', () => {
+  it.each([
+    ['loras', 'LorasControls'],
+    ['checkpoints', 'CheckpointsControls'],
+    ['embeddings', 'EmbeddingsControls'],
+  ])('registers preview repair actions for %s', async (pageKey, exportName) => {
+    renderControlsDom(pageKey);
+    const stateModule = await import('../../../static/js/state/index.js');
+    stateModule.initPageState(pageKey);
+    const controlsModule = await import('../../../static/js/components/controls/index.js');
+    const ControlsClass = controlsModule[exportName];
+    const controls = new ControlsClass();
+    const onProgress = vi.fn();
+
+    await controls.api.repairMissingPreviews(['/models/example.safetensors'], onProgress);
+    await controls.api.cancelTask();
+
+    expect(repairMissingPreviewsMock).toHaveBeenCalledWith(
+      ['/models/example.safetensors'],
+      onProgress,
+    );
+    expect(cancelTaskMock).toHaveBeenCalledTimes(1);
+  });
+
   it('persists favorites toggle for LoRAs and triggers reload', async () => {
     renderControlsDom('loras');
     const stateModule = await import('../../../static/js/state/index.js');
