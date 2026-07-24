@@ -1383,6 +1383,10 @@ export class BaseModelApiClient {
             params.append('favorites_only', 'true');
         }
 
+        if (!isExcludedView && pageState.showMetadataRefreshSkippedOnly) {
+            params.append('metadata_refresh_skipped_only', 'true');
+        }
+
         if (!isExcludedView && pageState.showUpdateAvailableOnly) {
             params.append('update_available_only', 'true');
         }

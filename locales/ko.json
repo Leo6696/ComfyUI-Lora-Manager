@@ -750,6 +750,10 @@
         "action": "[TODO: Translate] Retry skipped",
         "title": "[TODO: Translate] Retry models previously skipped as not found on Civitai"
       },
+      "skippedOnly": {
+        "title": "[TODO: Translate] Show only models excluded from metadata refresh",
+        "action": "[TODO: Translate] Skipped only"
+      },
       "smartRename": {
         "action": "[TODO: Translate] Smart rename",
         "title": "[TODO: Translate] Preview safe filenames generated from Civitai metadata"

@@ -727,6 +727,10 @@
         "title": "Retry models previously skipped as not found on Civitai",
         "action": "Retry skipped"
       },
+      "skippedOnly": {
+        "title": "Show only models excluded from metadata refresh",
+        "action": "Skipped only"
+      },
       "smartRename": {
         "title": "Preview safe filenames generated from Civitai metadata",
         "action": "Smart rename"

@@ -1252,3 +1252,45 @@ async def test_get_model_civitai_url_falls_back_when_host_setting_is_not_a_strin
         "model_id": "123",
         "version_id": "456",
     }
+
+@pytest.mark.asyncio
+async def test_get_paginated_data_filters_metadata_refresh_skipped_models():
+    items = [
+        {
+            "model_name": "Explicitly skipped",
+            "folder": "regular",
+            "skip_metadata_refresh": True,
+        },
+        {
+            "model_name": "Skipped by folder",
+            "folder": "archive/subfolder",
+        },
+        {
+            "model_name": "Normal",
+            "folder": "regular",
+        },
+    ]
+    repository = StubRepository(items)
+    settings = StubSettings({"metadata_refresh_skip_paths": ["archive"]})
+
+    service = DummyService(
+        model_type="stub",
+        scanner=object(),
+        metadata_class=BaseModelMetadata,
+        cache_repository=repository,
+        filter_set=PassThroughFilterSet(),
+        search_strategy=NoSearchStrategy(),
+        settings_provider=settings,
+    )
+
+    response = await service.get_paginated_data(
+        page=1,
+        page_size=10,
+        metadata_refresh_skipped_only=True,
+    )
+
+    assert [item["model_name"] for item in response["items"]] == [
+        "Explicitly skipped",
+        "Skipped by folder",
+    ]
+    assert response["total"] == 2

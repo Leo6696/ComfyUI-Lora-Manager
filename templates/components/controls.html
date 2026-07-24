@@ -76,6 +76,9 @@
                 <button data-action="retry-skipped" title="{{ t('loras.controls.retrySkipped.title', default='Retry models previously skipped as not found') }}"><i class="fas fa-redo-alt"></i> <span>{{ t('loras.controls.retrySkipped.action', default='Retry skipped') }}</span></button>
             </div>
             <div class="control-group">
+                <button id="metadataRefreshSkippedFilterBtn" data-action="toggle-metadata-refresh-skipped" title="{{ t('loras.controls.skippedOnly.title', default='Show models excluded from metadata refresh') }}"><i class="fas fa-eye-slash"></i> <span>{{ t('loras.controls.skippedOnly.action', default='Skipped only') }}</span></button>
+            </div>
+            <div class="control-group">
                 <button data-action="smart-rename" title="{{ t('loras.controls.smartRename.title', default='Preview safe names generated from model metadata') }}"><i class="fas fa-signature"></i> <span>{{ t('loras.controls.smartRename.action', default='Smart rename') }}</span></button>
             </div>
             <div class="control-group">

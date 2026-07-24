@@ -41,6 +41,9 @@ export class PageControls {
         // Initialize favorites filter button state
         this.initFavoritesFilter();
 
+        // Initialize metadata-refresh skipped filter button state
+        this.initMetadataRefreshSkippedFilter();
+
         this.initExcludedViewControls();
         this.syncExcludedViewState();
         
@@ -288,6 +291,14 @@ export class PageControls {
         const retrySkippedButton = document.querySelector('[data-action="retry-skipped"]');
         if (retrySkippedButton) {
             retrySkippedButton.addEventListener('click', () => this.fetchFromCivitai(true));
+        }
+
+        const metadataRefreshSkippedFilterBtn = document.getElementById('metadataRefreshSkippedFilterBtn');
+        if (metadataRefreshSkippedFilterBtn) {
+            metadataRefreshSkippedFilterBtn.addEventListener(
+                'click',
+                () => this.toggleMetadataRefreshSkippedOnly(),
+            );
         }
 
         const smartRenameButton = document.querySelector('[data-action="smart-rename"]');
@@ -914,6 +925,24 @@ export class PageControls {
     }
 
     /**
+     * Initialize metadata-refresh skipped filter button state
+     */
+    initMetadataRefreshSkippedFilter() {
+        const storageKey = `show_metadata_refresh_skipped_only_${this.pageType}`;
+        const storedValue = getSessionItem(storageKey, false);
+        const showSkippedOnly = storedValue === true || storedValue === 'true';
+
+        this.pageState.showMetadataRefreshSkippedOnly = showSkippedOnly;
+
+        const skippedFilterBtn = document.getElementById('metadataRefreshSkippedFilterBtn');
+        if (skippedFilterBtn) {
+            skippedFilterBtn.classList.toggle('active', showSkippedOnly);
+        }
+
+        this.updateActionButtonStates();
+    }
+
+    /**
      * Initialize update availability filter button state
      */
     initUpdateAvailableFilter() {
@@ -929,6 +958,28 @@ export class PageControls {
         }
 
         this.updateActionButtonStates();
+    }
+
+    /**
+     * Toggle metadata-refresh skipped-only filter and reload models
+     */
+    async toggleMetadataRefreshSkippedOnly() {
+        if (this.pageState.viewMode === 'excluded') {
+            return;
+        }
+
+        const storageKey = `show_metadata_refresh_skipped_only_${this.pageType}`;
+        const newState = !this.pageState.showMetadataRefreshSkippedOnly;
+
+        setSessionItem(storageKey, newState);
+        this.pageState.showMetadataRefreshSkippedOnly = newState;
+
+        const skippedFilterBtn = document.getElementById('metadataRefreshSkippedFilterBtn');
+        if (skippedFilterBtn) {
+            skippedFilterBtn.classList.toggle('active', newState);
+        }
+
+        await this.resetAndReload(true);
     }
 
     /**
@@ -1016,6 +1067,14 @@ export class PageControls {
             favoriteFilterBtn.classList.toggle('active', Boolean(this.pageState.showFavoritesOnly));
         }
 
+        const skippedFilterBtn = document.getElementById('metadataRefreshSkippedFilterBtn');
+        if (skippedFilterBtn) {
+            skippedFilterBtn.classList.toggle(
+                'active',
+                Boolean(this.pageState.showMetadataRefreshSkippedOnly),
+            );
+        }
+
         const updateFilterBtn = document.getElementById('updateFilterBtn');
         if (updateFilterBtn) {
             updateFilterBtn.classList.toggle('active', Boolean(this.pageState.showUpdateAvailableOnly));
@@ -1037,6 +1096,7 @@ export class PageControls {
             '[data-action="bulk"]',
             '[data-action="find-duplicates"]',
             '#favoriteFilterBtn',
+            '#metadataRefreshSkippedFilterBtn',
             '.update-filter-group',
         ];
         const customFilterIndicator = document.getElementById('customFilterIndicator');
@@ -1151,6 +1211,7 @@ export class PageControls {
             activeFolder: this.pageState.activeFolder,
             activeLetterFilter: this.pageState.activeLetterFilter ?? null,
             showFavoritesOnly: this.pageState.showFavoritesOnly,
+            showMetadataRefreshSkippedOnly: this.pageState.showMetadataRefreshSkippedOnly,
             showUpdateAvailableOnly: this.pageState.showUpdateAvailableOnly,
             bulkMode: interactionSnapshot.bulkMode,
             duplicatesMode: interactionSnapshot.duplicatesMode,
@@ -1168,6 +1229,7 @@ export class PageControls {
         this.pageState.activeFolder = null;
         this.pageState.activeLetterFilter = null;
         this.pageState.showFavoritesOnly = false;
+        this.pageState.showMetadataRefreshSkippedOnly = false;
         this.pageState.showUpdateAvailableOnly = false;
 
         this.applyFilterState(this.buildExcludedFilters(excludedState.search || ''));
@@ -1193,6 +1255,7 @@ export class PageControls {
         this.pageState.activeFolder = snapshot.activeFolder ?? getStorageItem(`${this.pageType}_activeFolder`);
         this.pageState.activeLetterFilter = snapshot.activeLetterFilter ?? null;
         this.pageState.showFavoritesOnly = Boolean(snapshot.showFavoritesOnly);
+        this.pageState.showMetadataRefreshSkippedOnly = Boolean(snapshot.showMetadataRefreshSkippedOnly);
         this.pageState.showUpdateAvailableOnly = Boolean(snapshot.showUpdateAvailableOnly);
         this.applyFilterState(snapshot.filters || this.buildExcludedFilters(''));
         this.pageState.activeViewSnapshot = null;

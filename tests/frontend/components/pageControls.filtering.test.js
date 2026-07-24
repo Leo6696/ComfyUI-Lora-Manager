@@ -151,6 +151,9 @@ function renderControlsDom(pageKey) {
           <div class="control-group">
             <button id="favoriteFilterBtn" class="favorite-filter"></button>
           </div>
+          <div class="control-group">
+            <button id="metadataRefreshSkippedFilterBtn"></button>
+          </div>
           <div class="control-group dropdown-group update-filter-group">
             <button id="updateFilterBtn" class="dropdown-main update-filter" aria-busy="false">
               <i class="fas fa-exclamation-circle"></i>
@@ -650,6 +653,31 @@ describe('PageControls favorites, sorting, and duplicates scenarios', () => {
     expect(sessionStorage.getItem('lora_manager_show_favorites_only_checkpoints')).toBe('false');
     expect(stateModule.getCurrentPageState().showFavoritesOnly).toBe(false);
     expect(document.getElementById('favoriteFilterBtn').classList.contains('active')).toBe(false);
+    expect(resetAndReloadMock).toHaveBeenCalledWith(true);
+  });
+
+  it('persists skipped-only toggle and reloads LoRAs', async () => {
+    renderControlsDom('loras');
+    const stateModule = await import('../../../static/js/state/index.js');
+    stateModule.initPageState('loras');
+    const { LorasControls } = await import('../../../static/js/components/controls/LorasControls.js');
+
+    const controls = new LorasControls();
+
+    await controls.toggleMetadataRefreshSkippedOnly();
+
+    expect(sessionStorage.getItem('lora_manager_show_metadata_refresh_skipped_only_loras')).toBe('true');
+    expect(stateModule.getCurrentPageState().showMetadataRefreshSkippedOnly).toBe(true);
+    expect(document.getElementById('metadataRefreshSkippedFilterBtn').classList.contains('active')).toBe(true);
+    expect(resetAndReloadMock).toHaveBeenCalledWith(true);
+
+    resetAndReloadMock.mockClear();
+
+    await controls.toggleMetadataRefreshSkippedOnly();
+
+    expect(sessionStorage.getItem('lora_manager_show_metadata_refresh_skipped_only_loras')).toBe('false');
+    expect(stateModule.getCurrentPageState().showMetadataRefreshSkippedOnly).toBe(false);
+    expect(document.getElementById('metadataRefreshSkippedFilterBtn').classList.contains('active')).toBe(false);
     expect(resetAndReloadMock).toHaveBeenCalledWith(true);
   });
 

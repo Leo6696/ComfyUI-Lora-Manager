@@ -64,6 +64,30 @@ class BaseModelService(ABC):
         self.search_strategy = search_strategy or SearchStrategy()
         self.update_service = update_service
 
+    @staticmethod
+    def _is_in_metadata_refresh_skip_path(
+        folder: str,
+        skip_paths: List[str],
+    ) -> bool:
+        if not skip_paths or not folder:
+            return False
+
+        normalized = folder.replace("\\", "/").strip("/")
+        if not normalized:
+            return False
+
+        for skip_path in skip_paths:
+            if not isinstance(skip_path, str):
+                continue
+            normalized_skip_path = skip_path.replace("\\", "/").strip("/")
+            if normalized_skip_path and (
+                normalized == normalized_skip_path
+                or normalized.startswith(normalized_skip_path + "/")
+            ):
+                return True
+
+        return False
+
     async def get_paginated_data(
         self,
         page: int,
@@ -81,6 +105,7 @@ class BaseModelService(ABC):
         search_options: dict = None,
         hash_filters: dict = None,
         favorites_only: bool = False,
+        metadata_refresh_skipped_only: bool = False,
         update_available_only: bool = False,
         credit_required: Optional[bool] = None,
         allow_selling_generated_content: Optional[bool] = None,
@@ -103,6 +128,18 @@ class BaseModelService(ABC):
             item["auto_tags"] = extract_auto_tags(item)
         fetch_duration = time.perf_counter() - t0
         initial_count = len(sorted_data)
+
+        if metadata_refresh_skipped_only:
+            skip_paths = self.settings.get("metadata_refresh_skip_paths", [])
+            sorted_data = [
+                item
+                for item in sorted_data
+                if item.get("skip_metadata_refresh", False)
+                or self._is_in_metadata_refresh_skip_path(
+                    item.get("folder", ""),
+                    skip_paths,
+                )
+            ]
 
         # Optionally filter by civitai model ID (shows all local versions of a specific model)
         civitai_model_id = kwargs.get("civitai_model_id")

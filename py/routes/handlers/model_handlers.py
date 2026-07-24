@@ -358,6 +358,10 @@ class ModelListingHandler:
         update_available_only = (
             request.query.get("update_available_only", "false").lower() == "true"
         )
+        metadata_refresh_skipped_only = (
+            request.query.get("metadata_refresh_skipped_only", "false").lower()
+            == "true"
+        )
 
         # Tag logic: "any" (OR) or "all" (AND) for include tags
         tag_logic = request.query.get("tag_logic", "any").lower()
@@ -417,6 +421,7 @@ class ModelListingHandler:
             "search_options": search_options,
             "hash_filters": hash_filters,
             "favorites_only": favorites_only,
+            "metadata_refresh_skipped_only": metadata_refresh_skipped_only,
             "update_available_only": update_available_only,
             "credit_required": credit_required,
             "allow_selling_generated_content": allow_selling_generated_content,

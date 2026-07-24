@@ -750,6 +750,10 @@
         "action": "重试跳过项",
         "title": "重新查询此前被标记为 Civitai 未找到的模型"
       },
+      "skippedOnly": {
+        "title": "只显示已设置为跳过元数据刷新的模型",
+        "action": "只看跳过"
+      },
       "smartRename": {
         "action": "智能改名",
         "title": "根据 Civitai 元数据预览安全文件名"
