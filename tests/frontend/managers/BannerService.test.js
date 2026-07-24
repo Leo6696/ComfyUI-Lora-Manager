@@ -41,6 +41,22 @@ describe('BannerService', () => {
         document.body.innerHTML = '<div id="banner-container"></div>';
     });
 
+    describe('Default Banners', () => {
+        it('should not register the Civitai extension promotion', async () => {
+            storageHelpers.getStorageItem.mockImplementation((key, defaultValue) => {
+                if (key === 'dismissed_banners') {
+                    return [];
+                }
+                return defaultValue;
+            });
+
+            await bannerService.initialize();
+
+            expect(bannerService.banners.has('civitai-extension')).toBe(false);
+            expect(bannerService.banners.has('community-support')).toBe(false);
+        });
+    });
+
     describe('Community Support Banner', () => {
         const COMMUNITY_SUPPORT_BANNER_ID = 'community-support';
         const COMMUNITY_SUPPORT_FIRST_SEEN_AT_KEY = 'community_support_banner_first_seen_at';
