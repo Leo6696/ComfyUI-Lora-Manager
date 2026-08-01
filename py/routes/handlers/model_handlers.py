@@ -540,12 +540,29 @@ class ModelManagementHandler:
                     # Update model_data with new hash
                     model_data["sha256"] = sha256
                     model_data["hash_status"] = "completed"
+                    hash_status = "completed"
                 else:
                     return web.json_response(
                         {"success": False, "error": "No SHA256 hash found"}, status=400
                     )
 
             await MetadataManager.hydrate_model_data(model_data)
+
+            # Hydration replaces the cache dictionary with sidecar contents.
+            # A partial or concurrently written sidecar can therefore erase the
+            # hash that was already present or just calculated above.
+            if not model_data.get("sha256"):
+                if not sha256:
+                    return web.json_response(
+                        {"success": False, "error": "No SHA256 hash found"},
+                        status=400,
+                    )
+                model_data["sha256"] = sha256.lower()
+                model_data["hash_status"] = hash_status or "completed"
+                model_data.setdefault("file_path", file_path)
+                data_to_save = model_data.copy()
+                data_to_save.pop("folder", None)
+                await MetadataManager.save_metadata(file_path, data_to_save)
 
             success, error = await self._metadata_sync.fetch_and_update_model(
                 sha256=model_data["sha256"],
@@ -569,7 +586,12 @@ class ModelManagementHandler:
                     {"success": False, "error": OFFLINE_FRIENDLY_MESSAGE},
                     status=503,
                 )
-            self._logger.error("Error fetching from CivitAI: %s", exc, exc_info=True)
+            self._logger.error(
+                "Error fetching from CivitAI for %s: %s",
+                locals().get("file_path", "unknown"),
+                exc,
+                exc_info=True,
+            )
             return web.json_response({"success": False, "error": str(exc)}, status=500)
 
     async def relink_civitai(self, request: web.Request) -> web.Response:

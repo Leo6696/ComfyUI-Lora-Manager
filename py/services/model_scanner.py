@@ -935,6 +935,34 @@ class ModelScanner:
                 
                 # Update cache data
                 self._cache.raw_data = [item for item in self._cache.raw_data if item['file_path'] not in missing_files]
+
+            # Reconciliation may race with a download completion or a metadata
+            # refresh that inserts the same path. Keep the newest entry and let
+            # the normal rebuild below repair all derived indexes atomically.
+            deduped: List[Dict[str, Any]] = []
+            seen_paths: Set[str] = set()
+            duplicate_paths: Set[str] = set()
+            for item in reversed(self._cache.raw_data):
+                item_path = item.get('file_path', '')
+                if item_path and item_path in seen_paths:
+                    duplicate_paths.add(item_path)
+                    total_removed += 1
+                    continue
+                if item_path:
+                    seen_paths.add(item_path)
+                deduped.append(item)
+            self._cache.raw_data = list(reversed(deduped))
+            for duplicate_path in duplicate_paths:
+                self._hash_index.remove_by_path(duplicate_path)
+                kept_item = next(
+                    item for item in self._cache.raw_data
+                    if item.get('file_path') == duplicate_path
+                )
+                kept_hash = kept_item.get('sha256')
+                if kept_hash:
+                    self._hash_index.add_entry(
+                        kept_hash.lower(), duplicate_path
+                    )
             
             # Resort cache if changes were made
             if total_added > 0 or total_removed > 0:
@@ -1515,20 +1543,46 @@ class ModelScanner:
             # Update folder in metadata
             metadata_dict['folder'] = folder
             
-            # Add to cache
+            # A download completion and a refresh can both reach this method.
+            # Replace an existing path instead of creating a duplicate card.
+            file_path = metadata_dict.get('file_path', '')
+            old_entries = [
+                item for item in self._cache.raw_data
+                if item.get('file_path') == file_path
+            ] if file_path else []
+            for old_entry in old_entries:
+                self._cache.remove_from_version_index(old_entry)
+                for tag in old_entry.get('tags', []):
+                    if tag in self._tags_count:
+                        self._tags_count[tag] = max(0, self._tags_count[tag] - 1)
+                        if self._tags_count[tag] == 0:
+                            del self._tags_count[tag]
+            if file_path:
+                self._hash_index.remove_by_path(file_path)
+                self._cache.raw_data = [
+                    item for item in self._cache.raw_data
+                    if item.get('file_path') != file_path
+                ]
+
             self._cache.raw_data.append(metadata_dict)
             self._cache.add_to_version_index(metadata_dict)
+
+            for tag in metadata_dict.get('tags', []):
+                self._tags_count[tag] = self._tags_count.get(tag, 0) + 1
 
             # Resort cache data
             await self._cache.resort()
             
             # Update folders list
-            all_folders = set(self._cache.folders)
-            all_folders.add(folder)
+            all_folders = {
+                item.get('folder', '') for item in self._cache.raw_data
+            }
             self._cache.folders = sorted(list(all_folders), key=lambda x: x.lower())
             
             # Update the hash index
-            self._hash_index.add_entry(metadata_dict['sha256'], metadata_dict['file_path'])
+            sha256 = metadata_dict.get('sha256')
+            if sha256 and file_path:
+                self._hash_index.add_entry(sha256.lower(), file_path)
             await self._persist_current_cache()
             return True
         except Exception as e:

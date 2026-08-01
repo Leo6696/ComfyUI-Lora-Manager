@@ -434,7 +434,6 @@ def test_fetch_civitai_hydrates_metadata_before_sync(
 
     existing_metadata = {
         "file_path": str(model_path),
-        "sha256": "abc123",
         "model_name": "Hydrated",
         "preview_url": "keep/me.png",
         "civitai": {
@@ -521,14 +520,21 @@ def test_fetch_civitai_hydrates_metadata_before_sync(
             )
             assert captured["model_data"]["civitai"]["trainedWords"] == ["keep"]
             assert captured["model_data"]["civitai"]["id"] == 99
+            assert captured["model_data"]["sha256"] == "abc123"
         finally:
             await client.close()
 
     asyncio.run(scenario())
 
     assert save_calls, "Metadata save should be invoked"
-    saved_path, saved_payload = save_calls[0]
-    assert saved_path == str(metadata_path)
+    recovery_payload = next(
+        payload for path, payload in save_calls if path == str(model_path)
+    )
+    assert recovery_payload["sha256"] == "abc123"
+
+    saved_payload = next(
+        payload for path, payload in save_calls if path == str(metadata_path)
+    )
     assert saved_payload["custom_field"] == "preserve"
     assert (
         saved_payload["civitai"]["images"][0]["url"]
@@ -536,6 +542,7 @@ def test_fetch_civitai_hydrates_metadata_before_sync(
     )
     assert saved_payload["civitai"]["trainedWords"] == ["keep"]
     assert saved_payload["civitai"]["id"] == 99
+    assert saved_payload["sha256"] == "abc123"
     assert saved_payload["legacy_field"] == "legacy"
 
     assert mock_scanner.updated_models

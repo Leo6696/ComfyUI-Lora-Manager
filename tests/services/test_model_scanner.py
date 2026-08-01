@@ -611,6 +611,58 @@ async def test_reconcile_cache_adds_new_files_and_updates_hash_index(tmp_path: P
 
 
 @pytest.mark.asyncio
+async def test_reconcile_cache_keeps_newest_entry_for_duplicate_path(tmp_path: Path):
+    first = tmp_path / "one.txt"
+    first.write_text("one", encoding="utf-8")
+    scanner = DummyScanner(tmp_path)
+    await scanner._initialize_cache()
+
+    duplicate = dict(scanner._cache.raw_data[0])
+    duplicate.update(
+        {
+            "model_name": "newest",
+            "sha256": "hash-newest",
+            "tags": ["new-tag"],
+        }
+    )
+    scanner._cache.raw_data.append(duplicate)
+    scanner._hash_index.add_entry("hash-newest", duplicate["file_path"])
+
+    await scanner._reconcile_cache()
+
+    assert len(scanner._cache.raw_data) == 1
+    assert scanner._cache.raw_data[0]["model_name"] == "newest"
+    assert scanner._tags_count == {"new-tag": 1}
+    assert scanner._hash_index.get_path("hash-newest") == duplicate["file_path"]
+    assert scanner._hash_index.get_path("hash-one") is None
+
+
+@pytest.mark.asyncio
+async def test_add_model_to_cache_replaces_existing_path(tmp_path: Path):
+    first = tmp_path / "one.txt"
+    first.write_text("one", encoding="utf-8")
+    scanner = DummyScanner(tmp_path)
+    await scanner._initialize_cache()
+
+    replacement = dict(scanner._cache.raw_data[0])
+    replacement.update(
+        {
+            "model_name": "replacement",
+            "sha256": "hash-replacement",
+            "tags": ["replacement-tag"],
+        }
+    )
+
+    assert await scanner.add_model_to_cache(replacement, folder="") is True
+
+    assert len(scanner._cache.raw_data) == 1
+    assert scanner._cache.raw_data[0]["model_name"] == "replacement"
+    assert scanner._tags_count == {"replacement-tag": 1}
+    assert scanner._hash_index.get_path("hash-replacement") == replacement["file_path"]
+    assert scanner._hash_index.get_path("hash-one") is None
+
+
+@pytest.mark.asyncio
 async def test_reconcile_cache_repairs_external_rename_by_unique_sha(tmp_path: Path):
     old_file = tmp_path / "old-name.txt"
     old_file.write_text("same content", encoding="utf-8")
