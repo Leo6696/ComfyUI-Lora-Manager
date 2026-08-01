@@ -142,7 +142,8 @@
     "badges": {
       "update": "更新",
       "updateAvailable": "有可用更新",
-      "skipRefresh": "元数据刷新已跳过"
+      "skipRefresh": "元数据刷新已跳过",
+      "published": "发布于"
     },
     "usage": {
       "timesUsed": "使用次数"
@@ -763,7 +764,7 @@
         "finished": "预览补齐完成"
       },
       "skippedOnly": {
-        "title": "只显示已设置为跳过元数据刷新的模型",
+        "title": "只显示 Civitai 元数据查询无匹配的模型",
         "action": "只看跳过"
       },
       "smartRename": {

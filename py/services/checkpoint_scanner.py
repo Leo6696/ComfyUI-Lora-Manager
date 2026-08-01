@@ -91,7 +91,20 @@ class CheckpointScanner(ModelScanner):
             )
             return None
 
-    async def calculate_hash_for_model(self, file_path: str) -> Optional[str]:
+    @staticmethod
+    def _has_active_download_marker(file_path: str) -> bool:
+        """Return whether a downloader still owns the target model file."""
+        return any(
+            os.path.exists(f"{file_path}{suffix}")
+            for suffix in (".aria2", ".part")
+        )
+
+    async def calculate_hash_for_model(
+        self,
+        file_path: str,
+        *,
+        force: bool = False,
+    ) -> Optional[str]:
         """Calculate hash for a checkpoint on-demand with per-file singleflight.
 
         Args:
@@ -106,11 +119,19 @@ class CheckpointScanner(ModelScanner):
                 logger.error(f"File not found for hash calculation: {file_path}")
                 return None
 
+            if self._has_active_download_marker(file_path):
+                logger.warning(
+                    "Skipping hash calculation while download is active: %s",
+                    file_path,
+                )
+                return None
+
             metadata, _ = await MetadataManager.load_metadata(
                 file_path, self.model_class
             )
             if (
-                metadata is not None
+                not force
+                and metadata is not None
                 and metadata.hash_status == "completed"
                 and metadata.sha256
             ):
@@ -128,7 +149,8 @@ class CheckpointScanner(ModelScanner):
                     file_path, self.model_class
                 )
                 if (
-                    metadata is not None
+                    not force
+                    and metadata is not None
                     and metadata.hash_status == "completed"
                     and metadata.sha256
                 ):
@@ -138,7 +160,11 @@ class CheckpointScanner(ModelScanner):
                 task = self._hash_calculation_tasks.get(real_path)
                 if task is None:
                     task = asyncio.create_task(
-                        self._run_hash_calculation_task(file_path, real_path)
+                        self._run_hash_calculation_task(
+                            file_path,
+                            real_path,
+                            force=force,
+                        )
                     )
                     self._hash_calculation_tasks[real_path] = task
 
@@ -149,11 +175,19 @@ class CheckpointScanner(ModelScanner):
             return None
 
     async def _run_hash_calculation_task(
-        self, file_path: str, real_path: str
+        self,
+        file_path: str,
+        real_path: str,
+        *,
+        force: bool = False,
     ) -> Optional[str]:
         """Run a hash calculation task and remove it from the in-flight map."""
         try:
-            return await self._calculate_hash_for_model_uncached(file_path, real_path)
+            return await self._calculate_hash_for_model_uncached(
+                file_path,
+                real_path,
+                force=force,
+            )
         finally:
             task = asyncio.current_task()
             async with self._hash_calculation_lock:
@@ -161,7 +195,11 @@ class CheckpointScanner(ModelScanner):
                     del self._hash_calculation_tasks[real_path]
 
     async def _calculate_hash_for_model_uncached(
-        self, file_path: str, real_path: str
+        self,
+        file_path: str,
+        real_path: str,
+        *,
+        force: bool = False,
     ) -> Optional[str]:
         """Calculate hash for a checkpoint without checking in-flight tasks."""
         from ..utils.file_utils import calculate_sha256
@@ -181,12 +219,23 @@ class CheckpointScanner(ModelScanner):
                     return None
                 metadata = created_metadata
 
+            if self._has_active_download_marker(file_path):
+                logger.warning(
+                    "Skipping hash calculation while download is active: %s",
+                    file_path,
+                )
+                return None
+
             # Check if hash is already calculated
-            if metadata.hash_status == "completed" and metadata.sha256:
+            if not force and metadata.hash_status == "completed" and metadata.sha256:
                 # Populate the in-memory hash index even for pre-computed
                 # hashes, mirroring the fix in calculate_hash_for_model.
                 self._hash_index.add_entry(metadata.sha256.lower(), file_path)
                 return metadata.sha256
+
+            if force and metadata.sha256:
+                self._hash_index.remove_by_path(file_path)
+                metadata.sha256 = ""
 
             # Update status to calculating
             metadata.hash_status = "calculating"
@@ -194,11 +243,31 @@ class CheckpointScanner(ModelScanner):
 
             # Calculate hash
             logger.info(f"Calculating hash for checkpoint: {file_path}")
+            initial_stat = os.stat(real_path)
             sha256 = await calculate_sha256(real_path)
+            final_stat = os.stat(real_path)
+
+            file_changed = (
+                initial_stat.st_size != final_stat.st_size
+                or initial_stat.st_mtime_ns != final_stat.st_mtime_ns
+                or self._has_active_download_marker(file_path)
+            )
+            if file_changed:
+                metadata.sha256 = ""
+                metadata.hash_status = "pending"
+                metadata.size = final_stat.st_size
+                await MetadataManager.save_metadata(file_path, metadata)
+                self._hash_index.remove_by_path(file_path)
+                logger.warning(
+                    "Discarded SHA256 because the model changed during hashing: %s",
+                    file_path,
+                )
+                return None
 
             # Update metadata with hash
             metadata.sha256 = sha256
             metadata.hash_status = "completed"
+            metadata.size = final_stat.st_size
             await MetadataManager.save_metadata(file_path, metadata)
 
             # Update hash index

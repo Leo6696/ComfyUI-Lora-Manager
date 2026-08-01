@@ -38,12 +38,6 @@ from ...services.settings_manager import get_settings_manager
 from ...services.websocket_manager import ws_manager
 from ...services.downloader import get_downloader
 from ...services.errors import ResourceNotFoundError
-from ...services.llm_service import (
-    PROVIDER_PRESETS,
-    fetch_ollama_models,
-    get_all_provider_models,
-    get_provider_model_ids,
-)
 from ...services.cache_health_monitor import CacheHealthMonitor, CacheHealthStatus
 from ...utils.models import BaseModelMetadata
 from ...utils.constants import (
@@ -55,7 +49,6 @@ from ...utils.constants import (
     VALID_LORA_TYPES,
 )
 from .hf_handlers import HfHandler
-from .agent_handlers import AgentHandler
 from ...utils.civitai_utils import rewrite_preview_url
 from ...utils.example_images_paths import (
     find_non_compliant_items_in_example_images_root,
@@ -1407,6 +1400,10 @@ class ExampleWorkflowsHandler:
 class SettingsHandler:
     """Sync settings between backend and frontend."""
 
+    _REMOVED_AI_KEYS = frozenset(
+        {"llm_provider", "llm_api_key", "llm_api_base", "llm_model"}
+    )
+
     # Settings keys that should NOT be synced to frontend.
     # All other settings are synced by default.
     _NO_SYNC_KEYS = frozenset(
@@ -1421,7 +1418,12 @@ class SettingsHandler:
             # Sensitive — never expose the actual value to the frontend;
             # frontend receives a boolean instead (*_set).
             "civitai_api_key",
+            # Legacy AI settings may still exist in an older settings file.
+            # Keep them inert and never expose the saved API key.
+            "llm_provider",
             "llm_api_key",
+            "llm_api_base",
+            "llm_model",
         }
     )
 
@@ -1479,8 +1481,6 @@ class SettingsHandler:
             # Sensitive fields: only expose a boolean indicating whether set
             raw_key = self._settings.get("civitai_api_key")
             response_data["civitai_api_key_set"] = bool(raw_key)
-            raw_llm_key = self._settings.get("llm_api_key")
-            response_data["llm_api_key_set"] = bool(raw_llm_key)
             settings_file = getattr(self._settings, "settings_file", None)
             if settings_file:
                 response_data["settings_file"] = settings_file
@@ -1552,6 +1552,8 @@ class SettingsHandler:
             proxy_changed = False
 
             for key, value in data.items():
+                if key in self._REMOVED_AI_KEYS:
+                    continue
                 if value == self._settings.get(key):
                     continue
 
@@ -1589,42 +1591,6 @@ class SettingsHandler:
             logger.error("Error updating settings: %s", exc, exc_info=True)
             return web.Response(status=500, text=str(exc))
 
-    async def get_llm_models(self, request: web.Request) -> web.Response:
-        """Return the model list for a provider.
-
-        For ``ollama`` the list is fetched live from the local Ollama API
-        (only models actually pulled locally are shown).  For all other
-        providers the opencode model catalog is used.
-
-        Query parameters:
-            provider (required): Internal provider id (``openai``, ``ollama``, etc.).
-
-        Returns:
-            ``{"success": true, "models": ["gpt-4o", ...]}``.
-        """
-        provider_id = request.query.get("provider", "").strip()
-        if not provider_id:
-            return web.json_response(
-                {"success": False, "error": "provider query parameter is required", "models": []},
-                status=400,
-            )
-
-        try:
-            if provider_id == "ollama":
-                api_base = request.query.get("api_base", "").strip() or self._settings.get("llm_api_base", "")
-                if not api_base:
-                    api_base = "http://localhost:11434/v1"
-                models = await fetch_ollama_models(api_base)
-            else:
-                models = await get_provider_model_ids(provider_id)
-            return web.json_response({"success": True, "models": models})
-        except Exception as exc:
-            logger.warning("get_llm_models failed for %s: %s", provider_id, exc)
-            return web.json_response(
-                {"success": False, "error": str(exc), "models": []},
-                status=500,
-            )
-
     def _validate_example_images_path(self, folder_path: str) -> str | None:
         if not os.path.exists(folder_path):
             return f"Path does not exist: {folder_path}"
@@ -1646,21 +1612,6 @@ class SettingsHandler:
 
     def _is_dedicated_example_images_folder(self, folder_path: str) -> bool:
         return is_valid_example_images_root(folder_path)
-
-    async def get_provider_models(self, request: web.Request) -> web.Response:
-        """Return the model catalog for all preset providers.
-
-        This endpoint is called asynchronously by the settings UI so that
-        page rendering never blocks on the remote model catalog fetch.
-        """
-        catalog_provider_ids = [p for p in PROVIDER_PRESETS if p != "custom"]
-        try:
-            provider_models = await get_all_provider_models(catalog_provider_ids)
-            return web.json_response({"success": True, "models": provider_models})
-        except Exception as exc:
-            logger.warning("Failed to fetch provider models: %s", exc)
-            return web.json_response({"success": False, "models": {}, "error": str(exc)})
-
 
 class UsageStatsHandler:
     def __init__(self, usage_stats_factory: UsageStatsFactory = UsageStats) -> None:
@@ -3702,7 +3653,6 @@ class MiscHandlerSet:
         example_workflows: ExampleWorkflowsHandler,
         base_model: BaseModelHandlerSet,
         hf_handler: HfHandler | None = None,
-        agent_handler: AgentHandler | None = None,
     ) -> None:
         self.health = health
         self.settings = settings
@@ -3722,7 +3672,6 @@ class MiscHandlerSet:
         self.example_workflows = example_workflows
         self.base_model = base_model
         self.hf_handler = hf_handler
-        self.agent_handler = agent_handler
 
     def to_route_mapping(
         self,
@@ -3738,8 +3687,6 @@ class MiscHandlerSet:
             "get_priority_tags": self.settings.get_priority_tags,
             "get_settings_libraries": self.settings.get_libraries,
             "activate_library": self.settings.activate_library,
-            "get_llm_models": self.settings.get_llm_models,
-            "get_provider_models": self.settings.get_provider_models,
             "update_usage_stats": self.usage_stats.update_usage_stats,
             "get_usage_stats": self.usage_stats.get_usage_stats,
             "update_lora_code": self.lora_code.update_lora_code,
@@ -3776,10 +3723,6 @@ class MiscHandlerSet:
             "get_hf_repo_files": self.hf_handler.get_hf_repo_files,
             "download_hf_model": self.hf_handler.download_hf_model,
             "set_hf_url": self.hf_handler.set_hf_url,
-            # Agent skill handlers
-            "get_agent_skills": self.agent_handler.get_agent_skills,
-            "execute_agent_skill": self.agent_handler.execute_agent_skill,
-            "cancel_agent_skill": self.agent_handler.cancel_agent_skill,
             # Base model handlers
             "get_base_models": self.base_model.get_base_models,
             "refresh_base_models": self.base_model.refresh_base_models,

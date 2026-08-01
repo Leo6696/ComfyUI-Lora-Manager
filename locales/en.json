@@ -142,7 +142,8 @@
     "badges": {
       "update": "Update",
       "updateAvailable": "Update available",
-      "skipRefresh": "Metadata refresh skipped"
+      "skipRefresh": "Metadata refresh skipped",
+      "published": "Published"
     },
     "usage": {
       "timesUsed": "Times used"
@@ -740,7 +741,7 @@
         "finished": "Preview repair finished"
       },
       "skippedOnly": {
-        "title": "Show only models excluded from metadata refresh",
+        "title": "Show models whose Civitai metadata lookup returned no match",
         "action": "Skipped only"
       },
       "smartRename": {

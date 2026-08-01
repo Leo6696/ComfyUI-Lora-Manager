@@ -142,7 +142,8 @@
     "badges": {
       "update": "更新",
       "updateAvailable": "有可用更新",
-      "skipRefresh": "元數據更新已跳過"
+      "skipRefresh": "元數據更新已跳過",
+      "published": "發布於"
     },
     "usage": {
       "timesUsed": "使用次數"

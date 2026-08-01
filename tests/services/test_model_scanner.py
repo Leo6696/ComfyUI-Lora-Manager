@@ -14,7 +14,95 @@ from py.services.model_hash_index import ModelHashIndex
 from py.services.model_scanner import CacheBuildResult, ModelScanner
 from py.services.persistent_model_cache import PersistentModelCache, DEFAULT_LICENSE_FLAGS
 from py.utils.civitai_utils import build_license_flags
+from py.utils.metadata_manager import MetadataManager
 from py.utils.models import BaseModelMetadata
+
+
+def test_slim_civitai_payload_keeps_publication_timestamps():
+    payload = {
+        "id": 11,
+        "modelId": 22,
+        "name": "v1",
+        "publishedAt": "2025-08-17T12:34:56Z",
+        "createdAt": "2025-08-16T12:34:56Z",
+        "updatedAt": "2026-01-01T00:00:00Z",
+        "description": "discarded",
+    }
+
+    slim = ModelScanner._slim_civitai_payload(None, payload)
+
+    assert slim == {
+        "id": 11,
+        "modelId": 22,
+        "name": "v1",
+        "publishedAt": "2025-08-17T12:34:56Z",
+        "createdAt": "2025-08-16T12:34:56Z",
+    }
+
+
+@pytest.mark.asyncio
+async def test_generic_hash_recalculation_replaces_stale_hash(
+    tmp_path: Path,
+    monkeypatch,
+):
+    scanner = DummyScanner(tmp_path)
+    model_file = tmp_path / "stale.txt"
+    model_file.write_bytes(b"completed model")
+    normalized_file = _normalize_path(model_file)
+    metadata = BaseModelMetadata(
+        file_name="stale",
+        model_name="Stale",
+        file_path=normalized_file,
+        size=model_file.stat().st_size,
+        modified=1.0,
+        sha256="partial_hash",
+        base_model="Unknown",
+        preview_url="",
+        hash_status="completed",
+    )
+    await MetadataManager.save_metadata(normalized_file, metadata)
+
+    async def fake_hash(_path: str) -> str:
+        return "a" * 64
+
+    monkeypatch.setattr(model_scanner, "calculate_sha256", fake_hash)
+
+    result = await scanner.calculate_hash_for_model(
+        normalized_file,
+        force=True,
+    )
+
+    assert result == "a" * 64
+    saved = json.loads(
+        model_file.with_suffix(".metadata.json").read_text(encoding="utf-8")
+    )
+    assert saved["sha256"] == "a" * 64
+    assert saved["hash_status"] == "completed"
+
+
+@pytest.mark.asyncio
+async def test_generic_hash_refuses_active_download(tmp_path: Path, monkeypatch):
+    scanner = DummyScanner(tmp_path)
+    model_file = tmp_path / "active.txt"
+    model_file.write_bytes(b"partial")
+    Path(f"{model_file}.aria2").write_bytes(b"control")
+
+    called = False
+
+    async def fake_hash(_path: str) -> str:
+        nonlocal called
+        called = True
+        return "a" * 64
+
+    monkeypatch.setattr(model_scanner, "calculate_sha256", fake_hash)
+
+    result = await scanner.calculate_hash_for_model(
+        _normalize_path(model_file),
+        force=True,
+    )
+
+    assert result is None
+    assert called is False
 
 
 class RecordingWebSocketManager:

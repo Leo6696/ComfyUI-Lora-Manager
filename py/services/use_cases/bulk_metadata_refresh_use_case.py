@@ -56,17 +56,20 @@ class BulkMetadataRefreshUseCase:
             metadata_missing = self._metadata_sidecar_missing(model)
             civitai = model.get("civitai") or {}
             has_civitai_id = bool(civitai.get("id"))
-            confirmed_not_found = (
+            missing_publication_date = has_civitai_id and not (
+                civitai.get("publishedAt") or civitai.get("createdAt")
+            )
+            negative_cached = (
                 model.get("from_civitai") is False
                 and model.get("civitai_deleted") is True
-                and (
-                    not enable_metadata_archive_db
-                    or model.get("db_checked", False)
-                )
+            )
+            confirmed_not_found = negative_cached and (
+                not enable_metadata_archive_db
+                or model.get("db_checked", False)
             )
 
             if retry_not_found_only:
-                if confirmed_not_found:
+                if negative_cached:
                     to_process.append(model)
                 continue
 
@@ -78,7 +81,11 @@ class BulkMetadataRefreshUseCase:
             # A deleted sidecar must invalidate the cached "already fetched"
             # decision.  Reuse the cached SHA256 in the processing loop so this
             # repair does not read and hash the model file again.
-            if metadata_missing or (not has_civitai_id and not confirmed_not_found):
+            if (
+                metadata_missing
+                or missing_publication_date
+                or (not has_civitai_id and not confirmed_not_found)
+            ):
                 to_process.append(model)
 
         total_to_process = len(to_process)
@@ -128,6 +135,11 @@ class BulkMetadataRefreshUseCase:
                 return {"success": False, "message": "Operation cancelled", "processed": processed, "updated": success, "total": total_models, "failures": failures, "failure_count": len(failures), "skipped_count": skipped_count, "elapsed_seconds": int(time.monotonic() - start_time)}
             try:
                 original_name = model.get("model_name")
+                cached_civitai = model.get("civitai") or {}
+                needs_official_publication_date = bool(cached_civitai.get("id")) and not (
+                    cached_civitai.get("publishedAt")
+                    or cached_civitai.get("createdAt")
+                )
 
                 # Recover a missing hash whenever the scanner supports on-demand
                 # calculation.  A previous failed hydration may have removed the
@@ -135,6 +147,39 @@ class BulkMetadataRefreshUseCase:
                 sha256 = model.get("sha256", "")
                 hash_status = model.get("hash_status", "completed")
                 file_path = model.get("file_path")
+
+                should_recalculate_stale_hash = (
+                    retry_not_found_only
+                    and self._hash_may_be_stale(model)
+                )
+                if should_recalculate_stale_hash and file_path:
+                    calculate_hash_method = getattr(
+                        self._service.scanner,
+                        "calculate_hash_for_model",
+                        None,
+                    )
+                    if calculate_hash_method:
+                        self._logger.info(
+                            "Recalculating SHA256 before retrying skipped model: %s",
+                            file_path,
+                        )
+                        sha256 = await calculate_hash_method(file_path, force=True)
+                        if sha256:
+                            model["sha256"] = sha256
+                            model["hash_status"] = "completed"
+                        else:
+                            failures.append(
+                                {
+                                    "name": model.get("model_name", file_path),
+                                    "error": (
+                                        "SHA256 recalculation failed or download "
+                                        "is still active"
+                                    ),
+                                }
+                            )
+                            processed += 1
+                            handled_count += 1
+                            continue
 
                 if not sha256 and file_path:
                     self._logger.info(f"Calculating missing hash for {file_path}")
@@ -214,7 +259,9 @@ class BulkMetadataRefreshUseCase:
                     file_path=resolved_file_path,
                     model_data=model,
                     update_cache_func=self._service.scanner.update_single_model_cache,
-                    force_civitai_retry=retry_not_found_only,
+                    force_civitai_retry=(
+                        retry_not_found_only or needs_official_publication_date
+                    ),
                 )
 
                 if not result and error_msg and "Rate limited" in error_msg:
@@ -297,6 +344,31 @@ class BulkMetadataRefreshUseCase:
             return False
         metadata_path = os.path.splitext(file_path)[0] + ".metadata.json"
         return not os.path.exists(metadata_path)
+
+    @staticmethod
+    def _hash_may_be_stale(model: Dict[str, Any]) -> bool:
+        """Detect hashes captured before a model download finished."""
+        file_path = model.get("file_path")
+        if not isinstance(file_path, str) or not file_path:
+            return False
+        if not os.path.isfile(file_path):
+            return False
+        if os.path.exists(f"{file_path}.aria2") or os.path.exists(
+            f"{file_path}.part"
+        ):
+            return True
+
+        try:
+            stat = os.stat(file_path)
+        except OSError:
+            return False
+
+        recorded_size = int(model.get("size") or 0)
+        if recorded_size > 0 and recorded_size != stat.st_size:
+            return True
+
+        last_checked_at = float(model.get("last_checked_at") or 0.0)
+        return last_checked_at > 0 and stat.st_mtime > last_checked_at + 1.0
 
     @staticmethod
     def _is_in_skip_path(folder: str, skip_paths: List[str]) -> bool:

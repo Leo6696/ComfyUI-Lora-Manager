@@ -247,7 +247,10 @@ async def test_missing_metadata_sidecar_is_refetched_from_cached_hash(
             "sha256": "cached_hash_intact",
             "hash_status": "completed",
             "model_name": "Intact Sidecar",
-            "civitai": {"id": 202},
+            "civitai": {
+                "id": 202,
+                "publishedAt": "2025-01-01T00:00:00Z",
+            },
             "from_civitai": True,
         },
     ]
@@ -261,6 +264,41 @@ async def test_missing_metadata_sidecar_is_refetched_from_cached_hash(
     assert call_args["file_path"] == str(missing_sidecar_model)
     assert call_args["sha256"] == "cached_hash_missing"
     assert not mock_service.scanner.calculate_hash_for_model.called
+    assert result["processed"] == 1
+    assert result["updated"] == 1
+
+
+@pytest.mark.asyncio
+@patch.object(metadata_manager.MetadataManager, "hydrate_model_data")
+async def test_missing_publication_date_is_fetched_from_official_civitai(
+    mock_hydrate,
+    use_case,
+    mock_service,
+    mock_metadata_sync,
+    tmp_path,
+):
+    mock_hydrate.return_value = None
+
+    model_file = tmp_path / "missing_date.safetensors"
+    model_file.write_bytes(b"model")
+    model_file.with_suffix(".metadata.json").write_text("{}", encoding="utf-8")
+    model = {
+        "file_path": str(model_file),
+        "sha256": "known_hash",
+        "hash_status": "completed",
+        "model_name": "Missing Date",
+        "civitai": {"id": 3091496, "modelId": 2242173},
+        "from_civitai": True,
+    }
+    cache = SimpleNamespace(raw_data=[model], resort=AsyncMock())
+    mock_service.scanner.get_cached_data.return_value = cache
+
+    result = await use_case.execute()
+
+    mock_metadata_sync.fetch_and_update_model.assert_awaited_once()
+    call_args = mock_metadata_sync.fetch_and_update_model.call_args.kwargs
+    assert call_args["sha256"] == "known_hash"
+    assert call_args["force_civitai_retry"] is True
     assert result["processed"] == 1
     assert result["updated"] == 1
 
@@ -564,9 +602,13 @@ async def test_retry_not_found_mode_processes_only_negative_cache(
     use_case,
     mock_service,
     mock_metadata_sync,
+    mock_settings,
 ):
     """The explicit retry mode must not mix in normal fetch candidates."""
     mock_hydrate.return_value = None
+    mock_settings.get.side_effect = lambda key, default=False: (
+        True if key == "enable_metadata_archive_db" else default
+    )
     confirmed_not_found = {
         "file_path": "/models/not_found.safetensors",
         "sha256": "not_found_hash",
@@ -574,7 +616,9 @@ async def test_retry_not_found_mode_processes_only_negative_cache(
         "civitai": {},
         "from_civitai": False,
         "civitai_deleted": True,
-        "db_checked": True,
+        # The sidecar can lag behind the persistent cache for this flag.
+        # A negative Civitai result must remain retryable either way.
+        "db_checked": False,
     }
     normal_candidate = {
         "file_path": "/models/new.safetensors",
@@ -607,7 +651,51 @@ async def test_retry_not_found_mode_processes_only_negative_cache(
     call_args = mock_metadata_sync.fetch_and_update_model.call_args.kwargs
     assert call_args["file_path"] == "/models/not_found.safetensors"
     assert call_args["force_civitai_retry"] is True
+    mock_service.scanner.calculate_hash_for_model.assert_not_awaited()
+    assert call_args["sha256"] == "not_found_hash"
     assert result["processed"] == 1
     assert result["updated"] == 1
     assert reporter.progress_calls[0]["candidate_total"] == 1
     assert reporter.progress_calls[0]["retry_not_found_only"] is True
+
+
+@pytest.mark.asyncio
+@patch.object(metadata_manager.MetadataManager, "hydrate_model_data")
+async def test_retry_not_found_recalculates_hash_when_file_changed_after_check(
+    mock_hydrate,
+    use_case,
+    mock_service,
+    mock_metadata_sync,
+    tmp_path,
+):
+    mock_hydrate.return_value = None
+    model_file = tmp_path / "finished_after_check.safetensors"
+    model_file.write_bytes(b"completed download")
+    checked_at = model_file.stat().st_mtime - 10
+
+    stale_model = {
+        "file_path": str(model_file),
+        "sha256": "partial_download_hash",
+        "hash_status": "completed",
+        "size": 7,
+        "last_checked_at": checked_at,
+        "model_name": "Stale Hash",
+        "civitai": {},
+        "from_civitai": False,
+        "civitai_deleted": True,
+        "db_checked": True,
+    }
+    cache = SimpleNamespace(raw_data=[stale_model], resort=AsyncMock())
+    mock_service.scanner.get_cached_data.return_value = cache
+
+    result = await use_case.execute(retry_not_found_only=True)
+
+    mock_service.scanner.calculate_hash_for_model.assert_awaited_once_with(
+        str(model_file),
+        force=True,
+    )
+    call_args = mock_metadata_sync.fetch_and_update_model.call_args.kwargs
+    assert call_args["sha256"] == "calculated_hash_123"
+    assert call_args["force_civitai_retry"] is True
+    assert result["processed"] == 1
+    assert result["updated"] == 1

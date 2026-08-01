@@ -142,7 +142,8 @@
     "badges": {
       "update": "Update",
       "updateAvailable": "Update verfügbar",
-      "skipRefresh": "Metadaten-Aktualisierung übersprungen"
+      "skipRefresh": "Metadaten-Aktualisierung übersprungen",
+      "published": "Veröffentlicht"
     },
     "usage": {
       "timesUsed": "Verwendungsanzahl"

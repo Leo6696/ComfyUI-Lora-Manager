@@ -463,6 +463,37 @@ function showExampleAccessModal(card, modelType) {
     modalManager.showModal('exampleAccessModal');
 }
 
+export function getModelPublishedDate(civitaiData) {
+    if (!civitaiData || typeof civitaiData !== 'object') {
+        return null;
+    }
+
+    const timestamp = civitaiData.publishedAt || civitaiData.createdAt;
+    if (!timestamp) {
+        return null;
+    }
+
+    const date = new Date(timestamp);
+    if (Number.isNaN(date.getTime())) {
+        return null;
+    }
+
+    const isoDate = String(timestamp).match(/^(\d{4})-(\d{2})-(\d{2})/);
+    const displayDate = isoDate
+        ? `${isoDate[1]}-${isoDate[2]}-${isoDate[3]}`
+        : [
+            date.getFullYear(),
+            String(date.getMonth() + 1).padStart(2, '0'),
+            String(date.getDate()).padStart(2, '0')
+        ].join('-');
+
+    return {
+        displayDate,
+        fullDate: date.toLocaleString(),
+        isCreatedAtFallback: !civitaiData.publishedAt
+    };
+}
+
 export function createModelCard(model, modelType) {
     const card = document.createElement('div');
     card.className = 'model-card';  // Reuse the same class for styling
@@ -495,6 +526,7 @@ export function createModelCard(model, modelType) {
     const hasUsageCount = isUsageSort && typeof model.usage_count === 'number';
 
     const civitaiData = model.civitai || {};
+    const publishedDate = getModelPublishedDate(civitaiData);
     const modelId = civitaiData?.modelId ?? civitaiData?.model_id;
     if (modelId !== undefined && modelId !== null && modelId !== '') {
         card.dataset.modelId = modelId;
@@ -614,6 +646,7 @@ export function createModelCard(model, modelType) {
 
     const updateBadgeLabel = translate('modelCard.badges.update', {}, 'Update');
     const updateBadgeTooltip = translate('modelCard.badges.updateAvailable', {}, 'Update available');
+    const publishedLabel = translate('modelCard.badges.published', {}, 'Published');
     const actionIcons = `
         <i class="${isFavorite ? 'fas fa-star favorite-active' : 'far fa-star'}" 
            title="${favoriteTitle}">
@@ -695,6 +728,14 @@ export function createModelCard(model, modelType) {
                         <button class="show-content-btn">${showButtonText}</button>
                     </div>
                 </div>
+            ` : ''}
+            ${publishedDate ? `
+                <span class="model-published-date"
+                      title="${publishedDate.fullDate}"
+                      data-created-at-fallback="${publishedDate.isCreatedAtFallback ? 'true' : 'false'}">
+                    <i class="far fa-calendar-alt" aria-hidden="true"></i>
+                    <span>${publishedLabel} ${publishedDate.displayDate}</span>
+                </span>
             ` : ''}
             <div class="card-footer">
                 <div class="model-info">

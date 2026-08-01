@@ -40,6 +40,8 @@ def test_persistent_cache_roundtrip(tmp_path: Path, monkeypatch) -> None:
                 'id': 1,
                 'modelId': 2,
                 'name': 'verA',
+                'publishedAt': '2025-08-17T12:34:56Z',
+                'createdAt': '2025-08-16T12:34:56Z',
                 'trainedWords': ['word1'],
                 'creator': {'username': 'artist42'},
             },
@@ -88,6 +90,8 @@ def test_persistent_cache_roundtrip(tmp_path: Path, monkeypatch) -> None:
     assert first['favorite'] is True
     assert first['civitai']['id'] == 1
     assert first['civitai']['trainedWords'] == ['word1']
+    assert first['civitai']['publishedAt'] == '2025-08-17T12:34:56Z'
+    assert first['civitai']['createdAt'] == '2025-08-16T12:34:56Z'
     assert first['tags'] == ['alpha', 'beta']
     assert first['metadata_source'] == 'civitai_api'
     assert first['civitai']['creator']['username'] == 'artist42'

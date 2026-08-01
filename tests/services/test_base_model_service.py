@@ -28,6 +28,28 @@ class DummyService(BaseModelService):
         return model_data
 
 
+def test_minimal_civitai_data_keeps_publication_timestamps():
+    data = {
+        "id": 11,
+        "modelId": 22,
+        "name": "v1",
+        "publishedAt": "2025-08-17T12:34:56Z",
+        "createdAt": "2025-08-16T12:34:56Z",
+        "updatedAt": "2026-01-01T00:00:00Z",
+        "description": "not needed by model cards",
+    }
+
+    filtered = BaseModelService.filter_civitai_data(None, data, minimal=True)
+
+    assert filtered == {
+        "id": 11,
+        "modelId": 22,
+        "name": "v1",
+        "publishedAt": "2025-08-17T12:34:56Z",
+        "createdAt": "2025-08-16T12:34:56Z",
+    }
+
+
 class StubRepository:
     def __init__(self, data):
         self._data = list(data)
@@ -1257,21 +1279,28 @@ async def test_get_model_civitai_url_falls_back_when_host_setting_is_not_a_strin
 async def test_get_paginated_data_filters_metadata_refresh_skipped_models():
     items = [
         {
-            "model_name": "Explicitly skipped",
-            "folder": "regular",
+            "model_name": "Confirmed not found",
+            "from_civitai": False,
+            "civitai_deleted": True,
+            "db_checked": True,
+        },
+        {
+            "model_name": "Manually excluded from refresh",
             "skip_metadata_refresh": True,
         },
         {
-            "model_name": "Skipped by folder",
-            "folder": "archive/subfolder",
+            "model_name": "Civitai model",
+            "from_civitai": True,
+            "civitai_deleted": False,
         },
         {
-            "model_name": "Normal",
-            "folder": "regular",
+            "model_name": "Not yet confirmed",
+            "from_civitai": False,
+            "civitai_deleted": False,
         },
     ]
     repository = StubRepository(items)
-    settings = StubSettings({"metadata_refresh_skip_paths": ["archive"]})
+    settings = StubSettings({"enable_metadata_archive_db": False})
 
     service = DummyService(
         model_type="stub",
@@ -1290,7 +1319,45 @@ async def test_get_paginated_data_filters_metadata_refresh_skipped_models():
     )
 
     assert [item["model_name"] for item in response["items"]] == [
-        "Explicitly skipped",
-        "Skipped by folder",
+        "Confirmed not found",
+    ]
+    assert response["total"] == 1
+
+
+@pytest.mark.asyncio
+async def test_skipped_filter_includes_negative_cache_before_archive_flag_sync():
+    items = [
+        {
+            "model_name": "Archive checked",
+            "from_civitai": False,
+            "civitai_deleted": True,
+            "db_checked": True,
+        },
+        {
+            "model_name": "Archive not checked",
+            "from_civitai": False,
+            "civitai_deleted": True,
+            "db_checked": False,
+        },
+    ]
+    service = DummyService(
+        model_type="stub",
+        scanner=object(),
+        metadata_class=BaseModelMetadata,
+        cache_repository=StubRepository(items),
+        filter_set=PassThroughFilterSet(),
+        search_strategy=NoSearchStrategy(),
+        settings_provider=StubSettings({"enable_metadata_archive_db": True}),
+    )
+
+    response = await service.get_paginated_data(
+        page=1,
+        page_size=10,
+        metadata_refresh_skipped_only=True,
+    )
+
+    assert [item["model_name"] for item in response["items"]] == [
+        "Archive checked",
+        "Archive not checked",
     ]
     assert response["total"] == 2

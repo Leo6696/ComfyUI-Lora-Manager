@@ -149,7 +149,7 @@ class ModelScanner:
             return None
 
         slim: Dict[str, Any] = {}
-        for key in ('id', 'modelId', 'name'):
+        for key in ('id', 'modelId', 'name', 'publishedAt', 'createdAt'):
             value = civitai.get(key)
             if value not in (None, '', []):
                 slim[key] = value
@@ -1241,6 +1241,13 @@ class ModelScanner:
             
         if metadata is None:
             metadata = await self._create_default_metadata(file_path)
+
+        if metadata is not None and self._has_active_download_marker(file_path):
+            if metadata.sha256 or metadata.hash_status != "pending":
+                metadata.sha256 = ""
+                metadata.hash_status = "pending"
+                metadata.size = os.path.getsize(file_path)
+                await MetadataManager.save_metadata(file_path, metadata)
         
         # Hook: allow subclasses to adjust metadata
         metadata = self.adjust_metadata(metadata, file_path, root_path)
@@ -1954,8 +1961,85 @@ class ModelScanner:
         for model_data in self._cache.raw_data:
             if model_data.get('file_path') == file_path:
                 return model_data.get('sha256')
-        
+
         return None
+
+    @staticmethod
+    def _has_active_download_marker(file_path: str) -> bool:
+        return any(
+            os.path.exists(f"{file_path}{suffix}")
+            for suffix in (".aria2", ".part")
+        )
+
+    async def calculate_hash_for_model(
+        self,
+        file_path: str,
+        *,
+        force: bool = False,
+    ) -> Optional[str]:
+        """Calculate a stable model hash, refusing active downloads."""
+        real_path = os.path.realpath(file_path)
+        if not os.path.isfile(real_path):
+            logger.error("File not found for hash calculation: %s", file_path)
+            return None
+        if self._has_active_download_marker(file_path):
+            logger.warning(
+                "Skipping hash calculation while download is active: %s",
+                file_path,
+            )
+            return None
+
+        metadata, should_skip = await MetadataManager.load_metadata(
+            file_path,
+            self.model_class,
+        )
+        if should_skip:
+            return None
+        if (
+            not force
+            and metadata is not None
+            and metadata.hash_status == "completed"
+            and metadata.sha256
+        ):
+            self._hash_index.add_entry(metadata.sha256.lower(), file_path)
+            return metadata.sha256
+
+        initial_stat = os.stat(real_path)
+        sha256 = await calculate_sha256(real_path)
+        final_stat = os.stat(real_path)
+        if (
+            initial_stat.st_size != final_stat.st_size
+            or initial_stat.st_mtime_ns != final_stat.st_mtime_ns
+            or self._has_active_download_marker(file_path)
+        ):
+            if metadata is not None:
+                metadata.sha256 = ""
+                metadata.hash_status = "pending"
+                metadata.size = final_stat.st_size
+                await MetadataManager.save_metadata(file_path, metadata)
+            self._hash_index.remove_by_path(file_path)
+            logger.warning(
+                "Discarded SHA256 because the model changed during hashing: %s",
+                file_path,
+            )
+            return None
+
+        if metadata is not None:
+            metadata.sha256 = sha256
+            metadata.hash_status = "completed"
+            metadata.size = final_stat.st_size
+            await MetadataManager.save_metadata(file_path, metadata)
+
+        self._hash_index.remove_by_path(file_path)
+        self._hash_index.add_entry(sha256.lower(), file_path)
+        if self._cache is not None:
+            for entry in self._cache.raw_data:
+                if entry.get("file_path") == file_path:
+                    entry["sha256"] = sha256.lower()
+                    entry["hash_status"] = "completed"
+                    entry["size"] = final_stat.st_size
+                    break
+        return sha256
     
     def get_hash_by_filename(self, filename: str) -> Optional[str]:
         """Get hash for a model by its filename without path"""

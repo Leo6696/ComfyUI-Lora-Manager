@@ -142,7 +142,8 @@
     "badges": {
       "update": "עדכון",
       "updateAvailable": "עדכון זמין",
-      "skipRefresh": "רענון המטא-נתונים דולג"
+      "skipRefresh": "רענון המטא-נתונים דולג",
+      "published": "פורסם"
     },
     "usage": {
       "timesUsed": "מספר שימושים"

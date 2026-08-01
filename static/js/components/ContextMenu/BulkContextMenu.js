@@ -274,9 +274,6 @@ export class BulkContextMenu extends BaseContextMenu {
             case 'resume-metadata-refresh':
                 bulkManager.setSkipMetadataRefresh(false);
                 break;
-            case 'enrich-hf-llm-bulk':
-                this.enrichBulkWithAgent();
-                break;
             case 'delete-all':
                 bulkManager.showBulkDeleteModal();
                 break;
@@ -367,89 +364,4 @@ export class BulkContextMenu extends BaseContextMenu {
         }
     }
 
-    /**
-     * Enrich metadata for selected models via LLM agent skill.
-     */
-    async enrichBulkWithAgent() {
-        if (state.selectedModels.size === 0) {
-            return;
-        }
-
-        const { agentManager } = await import('../../managers/AgentManager.js');
-
-        const configured = await agentManager.isLlmConfigured();
-        if (!configured) {
-            showToast('toast.agent.llmNotConfigured', {}, 'warning');
-            return;
-        }
-
-        const modelPaths = [...state.selectedModels];
-
-        agentManager.connect();
-
-        const progressUI = state.loadingManager.showEnhancedProgress(
-            `Enriching metadata for ${modelPaths.length} models...`
-        );
-
-        function cleanupCallbacks() {
-            const pIdx = agentManager.progressCallbacks.indexOf(onProgress);
-            if (pIdx >= 0) agentManager.progressCallbacks.splice(pIdx, 1);
-            const cIdx = agentManager.completeCallbacks.indexOf(onComplete);
-            if (cIdx >= 0) agentManager.completeCallbacks.splice(cIdx, 1);
-            const eIdx = agentManager.errorCallbacks.indexOf(onError);
-            if (eIdx >= 0) agentManager.errorCallbacks.splice(eIdx, 1);
-        }
-
-        const onProgress = (data) => {
-            if (data.status === 'processing' && data.current_path && data.updated_data && Object.keys(data.updated_data).length > 0) {
-                if (state.virtualScroller?.updateSingleItem) {
-                    state.virtualScroller.updateSingleItem(data.current_path, data.updated_data);
-                }
-                const pct = data.total > 0 ? Math.floor((data.processed / data.total) * 100) : 0;
-                const name = data.current_path.split('/').pop();
-                progressUI.updateProgress(pct, name, `Processing ${data.processed}/${data.total}: ${name}`);
-            }
-        };
-        agentManager.onProgress(onProgress);
-
-        const onComplete = (data) => {
-            cleanupCallbacks();
-
-            if (data.status === 'completed') {
-                if (state.bulkMode) bulkManager.toggleBulkMode();
-                progressUI.complete(data.summary || 'Enrich complete');
-                showToast(
-                    'toast.agent.enrichComplete',
-                    { summary: data.summary || 'Done' },
-                    'success'
-                );
-            }
-        };
-        agentManager.onComplete(onComplete);
-
-        const onError = (data) => {
-            cleanupCallbacks();
-            if (state.bulkMode) bulkManager.toggleBulkMode();
-            state.loadingManager.hide();
-            showToast(
-                'toast.agent.enrichFailed',
-                { error: data.error || 'Unknown error' },
-                'error'
-            );
-        };
-        agentManager.onError(onError);
-
-        try {
-            await agentManager.executeSkill('enrich_hf_metadata', modelPaths);
-        } catch (error) {
-            cleanupCallbacks();
-            if (state.bulkMode) bulkManager.toggleBulkMode();
-            state.loadingManager.hide();
-            showToast(
-                'toast.agent.enrichFailed',
-                { error: error.message },
-                'error'
-            );
-        }
-    }
 }

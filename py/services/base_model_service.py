@@ -130,15 +130,11 @@ class BaseModelService(ABC):
         initial_count = len(sorted_data)
 
         if metadata_refresh_skipped_only:
-            skip_paths = self.settings.get("metadata_refresh_skip_paths", [])
             sorted_data = [
                 item
                 for item in sorted_data
-                if item.get("skip_metadata_refresh", False)
-                or self._is_in_metadata_refresh_skip_path(
-                    item.get("folder", ""),
-                    skip_paths,
-                )
+                if item.get("from_civitai") is False
+                and item.get("civitai_deleted") is True
             ]
 
         # Optionally filter by civitai model ID (shows all local versions of a specific model)
@@ -920,7 +916,14 @@ class BaseModelService(ABC):
             return {}
 
         fields = (
-            ["id", "modelId", "name", "trainedWords"]
+            [
+                "id",
+                "modelId",
+                "name",
+                "publishedAt",
+                "createdAt",
+                "trainedWords",
+            ]
             if minimal
             else [
                 "id",

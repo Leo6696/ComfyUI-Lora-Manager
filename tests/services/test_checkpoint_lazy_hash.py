@@ -201,6 +201,123 @@ async def test_calculate_hash_skips_if_already_completed(tmp_path: Path, monkeyp
 
 
 @pytest.mark.asyncio
+async def test_calculate_hash_skips_active_aria2_download(tmp_path: Path, monkeypatch):
+    checkpoints_root = tmp_path / "checkpoints"
+    checkpoints_root.mkdir()
+    checkpoint_file = checkpoints_root / "downloading.safetensors"
+    checkpoint_file.write_bytes(b"partial")
+    checkpoint_file.with_suffix(".safetensors.aria2").write_bytes(b"control")
+
+    normalized_root = _normalize(checkpoints_root)
+    normalized_file = _normalize(checkpoint_file)
+    monkeypatch.setattr(
+        model_scanner.config,
+        "base_models_roots",
+        [normalized_root],
+        raising=False,
+    )
+
+    scanner = CheckpointScanner()
+    await scanner._create_default_metadata(normalized_file)
+
+    with patch("py.utils.file_utils.calculate_sha256") as mock_calc:
+        hash_result = await scanner.calculate_hash_for_model(normalized_file)
+
+    assert hash_result is None
+    mock_calc.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_force_recalculates_completed_hash(tmp_path: Path, monkeypatch):
+    checkpoints_root = tmp_path / "checkpoints"
+    checkpoints_root.mkdir()
+    checkpoint_file = checkpoints_root / "wrong_hash.safetensors"
+    checkpoint_file.write_bytes(b"complete model")
+
+    normalized_root = _normalize(checkpoints_root)
+    normalized_file = _normalize(checkpoint_file)
+    monkeypatch.setattr(
+        model_scanner.config,
+        "base_models_roots",
+        [normalized_root],
+        raising=False,
+    )
+
+    scanner = CheckpointScanner()
+    metadata = CheckpointMetadata(
+        file_name="wrong_hash",
+        model_name="wrong_hash",
+        file_path=normalized_file,
+        size=checkpoint_file.stat().st_size,
+        modified=1.0,
+        sha256="wrong",
+        base_model="Unknown",
+        preview_url="",
+        hash_status="completed",
+    )
+    from py.utils.metadata_manager import MetadataManager
+    await MetadataManager.save_metadata(normalized_file, metadata)
+
+    with patch(
+        "py.utils.file_utils.calculate_sha256",
+        return_value="f" * 64,
+    ) as mock_calc:
+        hash_result = await scanner.calculate_hash_for_model(
+            normalized_file,
+            force=True,
+        )
+
+    assert hash_result == "f" * 64
+    mock_calc.assert_called_once()
+    saved = json.loads(
+        checkpoint_file.with_suffix(".metadata.json").read_text(encoding="utf-8")
+    )
+    assert saved["sha256"] == "f" * 64
+    assert saved["hash_status"] == "completed"
+
+
+@pytest.mark.asyncio
+async def test_hash_is_discarded_when_file_changes_during_calculation(
+    tmp_path: Path,
+    monkeypatch,
+):
+    checkpoints_root = tmp_path / "checkpoints"
+    checkpoints_root.mkdir()
+    checkpoint_file = checkpoints_root / "growing.safetensors"
+    checkpoint_file.write_bytes(b"partial")
+
+    normalized_root = _normalize(checkpoints_root)
+    normalized_file = _normalize(checkpoint_file)
+    monkeypatch.setattr(
+        model_scanner.config,
+        "base_models_roots",
+        [normalized_root],
+        raising=False,
+    )
+
+    scanner = CheckpointScanner()
+    await scanner._create_default_metadata(normalized_file)
+
+    async def mutate_during_hash(_file_path: str) -> str:
+        with checkpoint_file.open("ab") as handle:
+            handle.write(b"more")
+        return "e" * 64
+
+    with patch(
+        "py.utils.file_utils.calculate_sha256",
+        side_effect=mutate_during_hash,
+    ):
+        hash_result = await scanner.calculate_hash_for_model(normalized_file)
+
+    assert hash_result is None
+    saved = json.loads(
+        checkpoint_file.with_suffix(".metadata.json").read_text(encoding="utf-8")
+    )
+    assert saved["sha256"] == ""
+    assert saved["hash_status"] == "pending"
+
+
+@pytest.mark.asyncio
 async def test_calculate_hash_for_model_singleflight_same_file(
     tmp_path: Path, monkeypatch
 ):

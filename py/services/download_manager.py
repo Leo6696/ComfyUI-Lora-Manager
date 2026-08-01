@@ -1590,8 +1590,14 @@ class DownloadManager:
                 "model_type": model_type,
                 "download_id": download_id,
             }
-            execute_signature = inspect.signature(self._execute_download)
-            if (
+            try:
+                execute_signature = inspect.signature(self._execute_download)
+            except (TypeError, ValueError):
+                # Some test doubles and third-party overrides do not expose a
+                # valid callable signature. Preserve the legacy call shape in
+                # that case instead of failing the entire download.
+                execute_signature = None
+            if execute_signature is not None and (
                 "transfer_backend" in execute_signature.parameters
                 or any(
                     parameter.kind == inspect.Parameter.VAR_KEYWORD

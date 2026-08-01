@@ -48,6 +48,8 @@ class PersistentModelCache:
         "civitai_model_id",
         "civitai_model_type",
         "civitai_name",
+        "civitai_published_at",
+        "civitai_created_at",
         "civitai_creator_username",
         "trained_words",
         "license_flags",
@@ -142,7 +144,14 @@ class PersistentModelCache:
             civitai: Optional[Dict] = None
             civitai_has_data = any(
                 row[col] is not None
-                for col in ("civitai_id", "civitai_model_id", "civitai_model_type", "civitai_name")
+                for col in (
+                    "civitai_id",
+                    "civitai_model_id",
+                    "civitai_model_type",
+                    "civitai_name",
+                    "civitai_published_at",
+                    "civitai_created_at",
+                )
             ) or trained_words or creator_username
             if civitai_has_data:
                 civitai = {}
@@ -152,6 +161,10 @@ class PersistentModelCache:
                     civitai["modelId"] = row["civitai_model_id"]
                 if row["civitai_name"]:
                     civitai["name"] = row["civitai_name"]
+                if row["civitai_published_at"]:
+                    civitai["publishedAt"] = row["civitai_published_at"]
+                if row["civitai_created_at"]:
+                    civitai["createdAt"] = row["civitai_created_at"]
                 if trained_words:
                     civitai["trainedWords"] = trained_words
                 if creator_username:
@@ -447,6 +460,8 @@ class PersistentModelCache:
                             civitai_model_id INTEGER,
                             civitai_model_type TEXT,
                             civitai_name TEXT,
+                            civitai_published_at TEXT,
+                            civitai_created_at TEXT,
                             civitai_creator_username TEXT,
                             trained_words TEXT,
                             civitai_deleted INTEGER,
@@ -498,6 +513,8 @@ class PersistentModelCache:
             "metadata_source": "TEXT",
             "civitai_creator_username": "TEXT",
             "civitai_model_type": "TEXT",
+            "civitai_published_at": "TEXT",
+            "civitai_created_at": "TEXT",
             "civitai_deleted": "INTEGER DEFAULT 0",
             "skip_metadata_refresh": "INTEGER DEFAULT 0",
             # Persisting without explicit flags should assume CivitAI's documented defaults (0b111001 == 57).
@@ -570,6 +587,8 @@ class PersistentModelCache:
             civitai.get("modelId"),
             model_type_value,
             civitai.get("name"),
+            civitai.get("publishedAt"),
+            civitai.get("createdAt"),
             creator_username,
             trained_words_json,
             int(license_flags),

@@ -32,6 +32,7 @@ class MockIntersectionObserver {
 
 describe('ModelCard video lazy loading queue', () => {
     let configureModelCardVideo;
+    let getModelPublishedDate;
     let loadSpy;
     let pauseSpy;
     let playSpy;
@@ -44,7 +45,7 @@ describe('ModelCard video lazy loading queue', () => {
         global.IntersectionObserver = MockIntersectionObserver;
         global.requestAnimationFrame = (callback) => setTimeout(callback, 0);
 
-        ({ configureModelCardVideo } = await import('../../../static/js/components/shared/ModelCard.js'));
+        ({ configureModelCardVideo, getModelPublishedDate } = await import('../../../static/js/components/shared/ModelCard.js'));
 
         loadSpy = vi.spyOn(HTMLMediaElement.prototype, 'load').mockImplementation(function () {
             this.dataset.loadCalls = `${parseInt(this.dataset.loadCalls || '0', 10) + 1}`;
@@ -122,5 +123,25 @@ describe('ModelCard video lazy loading queue', () => {
         expect(maxLoadsInInterval).toBeLessThanOrEqual(2);
 
         document.body.removeChild(container);
+    });
+
+    it('uses publishedAt and falls back to createdAt for card dates', () => {
+        expect(getModelPublishedDate({
+            publishedAt: '2025-08-17T12:34:56Z',
+            createdAt: '2025-08-16T12:34:56Z'
+        })).toMatchObject({
+            displayDate: '2025-08-17',
+            isCreatedAtFallback: false
+        });
+
+        expect(getModelPublishedDate({
+            createdAt: '2024-03-02T00:00:00Z'
+        })).toMatchObject({
+            displayDate: '2024-03-02',
+            isCreatedAtFallback: true
+        });
+
+        expect(getModelPublishedDate({ publishedAt: 'not-a-date' })).toBeNull();
+        expect(getModelPublishedDate({})).toBeNull();
     });
 });
