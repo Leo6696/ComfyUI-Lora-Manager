@@ -1417,6 +1417,10 @@ export class BaseModelApiClient {
             params.append('folder', pageState.activeFolder);
         }
 
+        if (!isExcludedView && pageState.activeFolderRoot) {
+            params.append('folder_root', pageState.activeFolderRoot);
+        }
+
         if (!isExcludedView && pageState.showFavoritesOnly) {
             params.append('favorites_only', 'true');
         }

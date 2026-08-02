@@ -283,6 +283,7 @@ class ModelListingHandler:
         page_size = min(int(request.query.get("page_size", "20")), 100)
         sort_by = request.query.get("sort_by", "name")
         folder = request.query.get("folder")
+        folder_root = request.query.get("folder_root")
         folder_include = list(request.query.getall("folder_include", []))
         search = request.query.get("search")
         fuzzy_search = request.query.get("fuzzy_search", "false").lower() == "true"
@@ -401,6 +402,7 @@ class ModelListingHandler:
             "page_size": page_size,
             "sort_by": sort_by,
             "folder": folder,
+            "folder_root": folder_root,
             "folder_include": folder_include,
             "folder_exclude": folder_exclude,
             "search": search,
@@ -1195,7 +1197,10 @@ class ModelQueryHandler:
     async def get_folders(self, request: web.Request) -> web.Response:
         try:
             cache = await self._service.scanner.get_cached_data()
-            return web.json_response({"folders": cache.folders})
+            folder_entries = await self._service.get_folder_entries()
+            return web.json_response(
+                {"folders": cache.folders, "folder_entries": folder_entries}
+            )
         except Exception as exc:
             self._logger.error("Error getting folders: %s", exc)
             return web.json_response({"success": False, "error": str(exc)}, status=500)

@@ -22,6 +22,8 @@ export class SidebarManager {
         this.isInitialized = false;
         this.displayMode = 'tree'; // 'tree' or 'list'
         this.foldersList = [];
+        this.folderEntries = [];
+        this.folderSelectionMap = new Map();
         this.recursiveSearchEnabled = true;
         this.draggedFilePaths = null;
         this.draggedRootPath = null;
@@ -122,6 +124,8 @@ export class SidebarManager {
         this.pageControls = null;
         this.pageType = null;
         this.treeData = {};
+        this.folderEntries = [];
+        this.folderSelectionMap = new Map();
         this.selectedPath = '';
         this.expandedNodes = new Set();
         this.openDropdown = null;
@@ -410,7 +414,7 @@ export class SidebarManager {
         this.setDropTargetHighlight(folderElement, false);
         this.currentDropTarget = null;
 
-        const targetPath = folderElement.dataset.path || '';
+        const targetPath = this.resolveFolderSelection(folderElement.dataset.path || '').path || '';
 
         await this.performDragMove(targetPath);
 
@@ -944,8 +948,12 @@ export class SidebarManager {
     }
 
     saveSelectedFolder() {
-        const activeFolder = this.selectedPath || null;
-        setStorageItem(`${this.pageType}_activeFolder`, activeFolder);
+        const selection = this.selectedPath
+            ? this.resolveFolderSelection(this.selectedPath)
+            : { path: null, root: null };
+        setStorageItem(`${this.pageType}_activeFolder`, selection.path);
+        setStorageItem(`${this.pageType}_activeFolderRoot`, selection.root);
+        setStorageItem(`${this.pageType}_activeFolderKey`, this.selectedPath || null);
     }
 
     clearAllDropHighlights() {
@@ -1161,18 +1169,56 @@ export class SidebarManager {
 
     async loadFolderTree() {
         try {
-            if (this.displayMode === 'tree') {
-                const response = await this.apiClient.fetchUnifiedFolderTree();
-                this.treeData = response.tree || {};
+            const response = await this.apiClient.fetchModelFolders();
+            this.folderEntries = response.folder_entries || [];
+
+            if (this.folderEntries.length > 0) {
+                this.buildDriveAwareFolderData();
+            } else if (this.displayMode === 'tree') {
+                const treeResponse = await this.apiClient.fetchUnifiedFolderTree();
+                this.treeData = treeResponse.tree || {};
+                this.folderSelectionMap = new Map();
             } else {
-                const response = await this.apiClient.fetchModelFolders();
                 this.foldersList = response.folders || [];
+                this.folderSelectionMap = new Map();
             }
             this.renderFolderDisplay();
         } catch (error) {
             console.error('Failed to load folder data:', error);
             this.renderEmptyState();
         }
+    }
+
+    buildDriveAwareFolderData() {
+        this.treeData = {};
+        this.folderSelectionMap = new Map();
+        this.foldersList = this.folderEntries.map(entry => {
+            const uiPath = `${entry.drive}:/${entry.path}`;
+            this.folderSelectionMap.set(uiPath, { path: entry.path, root: entry.root });
+
+            let node = this.treeData;
+            const driveNode = `${entry.drive}:`;
+            node[driveNode] ||= {};
+            this.folderSelectionMap.set(driveNode, { path: '', root: entry.root });
+            node = node[driveNode];
+
+            const parts = entry.path.split('/').filter(Boolean);
+            parts.forEach((part, index) => {
+                node[part] ||= {};
+                const folderPath = parts.slice(0, index + 1).join('/');
+                this.folderSelectionMap.set(
+                    `${driveNode}/${folderPath}`,
+                    { path: folderPath, root: entry.root }
+                );
+                node = node[part];
+            });
+
+            return { ...entry, uiPath };
+        });
+    }
+
+    resolveFolderSelection(path) {
+        return this.folderSelectionMap?.get(path) || { path, root: null };
     }
 
     renderFolderDisplay() {
@@ -1255,8 +1301,10 @@ export class SidebarManager {
             return;
         }
 
-        const foldersHtml = this.foldersList.map(folder => {
-            const displayName = folder === '' ? '/' : folder;
+        const foldersHtml = this.foldersList.map(folderEntry => {
+            const isStructured = typeof folderEntry === 'object' && folderEntry !== null;
+            const folder = isStructured ? folderEntry.uiPath : folderEntry;
+            const displayName = isStructured ? folderEntry.label : (folder === '' ? '/' : folder);
             const isSelected = this.selectedPath === folder;
             const escapedPath = escapeAttribute(folder);
             const escapedDisplayName = escapeHtml(displayName);
@@ -1372,10 +1420,11 @@ export class SidebarManager {
     }
 
     async _performFolderAction(action, path) {
+        const resolvedPath = this.resolveFolderSelection(path).path;
         switch (action) {
             case 'check-folder-updates':
                 try {
-                    await performFolderUpdateCheck(path);
+                    await performFolderUpdateCheck(resolvedPath);
                 } catch (error) {
                     console.error('Folder update check failed:', error);
                 }
@@ -1428,10 +1477,10 @@ export class SidebarManager {
     }
 
     async selectFolder(path) {
-        // Root is a navigation state, not an empty-folder filter.
         const isRoot = path === null || path === undefined || path === '';
         const normalizedPath = isRoot ? '' : path;
-        const activeFolder = isRoot ? null : normalizedPath;
+        const selection = isRoot ? { path: null, root: null } : this.resolveFolderSelection(normalizedPath);
+        const activeFolder = selection.path;
 
         // Update selected path
         this.selectedPath = normalizedPath;
@@ -1443,7 +1492,10 @@ export class SidebarManager {
 
         // Update page state
         this.pageControls.pageState.activeFolder = activeFolder;
+        this.pageControls.pageState.activeFolderRoot = selection.root;
         setStorageItem(`${this.pageType}_activeFolder`, activeFolder);
+        setStorageItem(`${this.pageType}_activeFolderRoot`, selection.root);
+        setStorageItem(`${this.pageType}_activeFolderKey`, normalizedPath || null);
 
         // Reload models with new filter (loadMoreWithVirtualScroll will scroll to top)
         await this.pageControls.resetAndReload();
@@ -1808,8 +1860,14 @@ export class SidebarManager {
     restoreSelectedFolder() {
         const storageKey = `${this.pageType}_activeFolder`;
         const activeFolder = getStorageItem(storageKey);
-        if (activeFolder && typeof activeFolder === 'string') {
-            this.selectedPath = activeFolder;
+        const activeFolderRoot = getStorageItem(`${this.pageType}_activeFolderRoot`);
+        const activeFolderKey = getStorageItem(`${this.pageType}_activeFolderKey`);
+        if ((typeof activeFolder === 'string' && activeFolder.length > 0) || activeFolderRoot) {
+            this.selectedPath = activeFolderKey || activeFolder;
+            if (this.pageControls?.pageState) {
+                this.pageControls.pageState.activeFolder = activeFolder ?? '';
+                this.pageControls.pageState.activeFolderRoot = activeFolderRoot || null;
+            }
             this.updateTreeSelection();
             this.updateBreadcrumbs();
             this.updateSidebarHeader();
@@ -1817,8 +1875,11 @@ export class SidebarManager {
             this.selectedPath = '';
             if (this.pageControls?.pageState) {
                 this.pageControls.pageState.activeFolder = null;
+                this.pageControls.pageState.activeFolderRoot = null;
             }
             setStorageItem(storageKey, null);
+            setStorageItem(`${this.pageType}_activeFolderRoot`, null);
+            setStorageItem(`${this.pageType}_activeFolderKey`, null);
             this.updateSidebarHeader();
             this.updateBreadcrumbs(); // Always update breadcrumbs
         }

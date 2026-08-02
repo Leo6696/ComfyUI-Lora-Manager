@@ -180,6 +180,9 @@ export class ModelDuplicatesManager {
         if (pageState.activeFolder) {
             params.append('folder', pageState.activeFolder);
         }
+        if (pageState.activeFolderRoot) {
+            params.append('folder_root', pageState.activeFolderRoot);
+        }
 
         // Favorites filter
         if (pageState.showFavoritesOnly) {

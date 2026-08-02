@@ -1345,6 +1345,7 @@ export class PageControls {
         this.pageState.activeViewSnapshot = {
             sortBy: this.pageState.sortBy,
             activeFolder: this.pageState.activeFolder,
+            activeFolderRoot: this.pageState.activeFolderRoot,
             activeLetterFilter: this.pageState.activeLetterFilter ?? null,
             showFavoritesOnly: this.pageState.showFavoritesOnly,
             showMetadataRefreshSkippedOnly: this.pageState.showMetadataRefreshSkippedOnly,
@@ -1363,6 +1364,7 @@ export class PageControls {
         this.pageState.sortBy = excludedState.sortBy || 'name:asc';
         this.pageState.currentPage = 1;
         this.pageState.activeFolder = null;
+        this.pageState.activeFolderRoot = null;
         this.pageState.activeLetterFilter = null;
         this.pageState.showFavoritesOnly = false;
         this.pageState.showMetadataRefreshSkippedOnly = false;
@@ -1389,6 +1391,7 @@ export class PageControls {
         this.pageState.sortBy = snapshot.sortBy || this.convertLegacySortFormat(getStorageItem(`${this.pageType}_sort`) || 'name:asc');
         this.pageState.currentPage = 1;
         this.pageState.activeFolder = snapshot.activeFolder ?? getStorageItem(`${this.pageType}_activeFolder`);
+        this.pageState.activeFolderRoot = snapshot.activeFolderRoot ?? getStorageItem(`${this.pageType}_activeFolderRoot`);
         this.pageState.activeLetterFilter = snapshot.activeLetterFilter ?? null;
         this.pageState.showFavoritesOnly = Boolean(snapshot.showFavoritesOnly);
         this.pageState.showMetadataRefreshSkippedOnly = Boolean(snapshot.showMetadataRefreshSkippedOnly);

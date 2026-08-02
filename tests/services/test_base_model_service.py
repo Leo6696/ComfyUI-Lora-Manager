@@ -28,6 +28,65 @@ class DummyService(BaseModelService):
         return model_data
 
 
+class FolderCache:
+    def __init__(self, raw_data):
+        self.raw_data = raw_data
+
+
+class FolderScanner:
+    def __init__(self, roots, raw_data):
+        self._roots = roots
+        self._cache = FolderCache(raw_data)
+
+    async def get_cached_data(self):
+        return self._cache
+
+    def get_model_roots(self):
+        return self._roots
+
+    def _find_root_for_file(self, file_path):
+        return next(
+            (root for root in self._roots if file_path.startswith(f"{root}/")),
+            None,
+        )
+
+
+@pytest.mark.parametrize(
+    ("path", "expected"),
+    [
+        (r"D:\\models\\checkpoints", "D"),
+        ("/mnt/g/models/loras", "G"),
+        ("/home/leo/models/d/diffusion_models", "D"),
+    ],
+)
+def test_get_drive_label_supports_windows_and_wsl_paths(path, expected):
+    assert BaseModelService.get_drive_label(path) == expected
+
+
+@pytest.mark.asyncio
+async def test_get_folder_entries_keeps_same_folder_from_different_drives():
+    roots = [
+        "/home/leo/models/d/diffusion_models",
+        "/mnt/g/models/diffusion_models",
+    ]
+    scanner = FolderScanner(
+        roots,
+        [
+            {"folder": "Krea 2", "file_path": f"{roots[0]}/Krea 2/a.safetensors"},
+            {"folder": "Krea 2", "file_path": f"{roots[1]}/Krea 2/b.safetensors"},
+        ],
+    )
+    service = DummyService("checkpoint", scanner, BaseModelMetadata)
+
+    entries = await service.get_folder_entries()
+
+    assert [(entry["drive"], entry["path"]) for entry in entries] == [
+        ("D", "Krea 2"),
+        ("G", "Krea 2"),
+    ]
+    assert entries[0]["label"] == "D: Krea 2"
+
+
 def test_minimal_civitai_data_keeps_publication_timestamps():
     data = {
         "id": 11,

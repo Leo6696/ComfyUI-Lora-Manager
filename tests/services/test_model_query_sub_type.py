@@ -118,6 +118,30 @@ class TestModelFilterSetWithSubType:
         assert result[0]["model_name"] == "Model 1"
         assert result[1]["model_name"] == "Model 2"
 
+    def test_filter_by_folder_root_keeps_only_matching_drive(self):
+        settings = self.create_mock_settings()
+        filter_set = ModelFilterSet(settings)
+        data = [
+            {
+                "folder": "Krea 2",
+                "file_path": "/home/leo/models/d/diffusion_models/Krea 2/d.safetensors",
+            },
+            {
+                "folder": "Krea 2",
+                "file_path": "/mnt/g/models/diffusion_models/Krea 2/g.safetensors",
+            },
+        ]
+
+        result = filter_set.apply(
+            data,
+            FilterCriteria(
+                folder="Krea 2",
+                folder_root="/home/leo/models/d/diffusion_models",
+            ),
+        )
+
+        assert [item["file_path"] for item in result] == [data[0]["file_path"]]
+
     def test_filter_uses_civitai_type(self):
         """Filter should use civitai.model.type as fallback."""
         settings = self.create_mock_settings()

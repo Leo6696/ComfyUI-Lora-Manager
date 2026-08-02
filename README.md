@@ -68,6 +68,13 @@ This README documents only the additions and behavioral changes provided by this
 - 智能改名查询最多使用 3 路受控并发，并合并重复请求、短期缓存查询结果。
 - 任务进度带独立 ID，多页面同时操作不会互相覆盖。
 
+### 5. 多盘目录区分
+
+- 侧栏平铺模式在目录名前显示盘符，例如 `D: Krea 2` 和 `G: Krea 2`。
+- Windows 路径、WSL 的 `/mnt/d/...`，以及 `/home/用户名/models/d/...` 形式都会识别为同一个 `D` 盘标识。
+- 相同目录名不再跨模型根目录合并；选择目录后也只筛选对应盘中的模型。
+- 树形模式以盘符作为第一层节点，并保留按盘筛选状态。
+
 ### 安装
 
 新安装：
@@ -148,6 +155,13 @@ Available for LoRAs, checkpoints, and embeddings.
 - Show `completed/total · elapsed time` during smart rename jobs.
 - Use up to three controlled lookup workers, request coalescing, and short-lived result caches.
 - Scope WebSocket progress by job ID so concurrent pages do not overwrite each other.
+
+### 5. Drive-aware folder navigation
+
+- Prefix folders with their drive in list view, for example `D: Krea 2` and `G: Krea 2`.
+- Resolve Windows paths, WSL `/mnt/d/...` paths, and `/home/user/models/d/...` layouts to the same `D` label.
+- Keep identical relative folder names from separate model roots distinct and filter the selected root correctly.
+- Use drive letters as the top level in tree view and preserve the drive-specific selection.
 
 ### Installation
 

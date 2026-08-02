@@ -8,7 +8,7 @@ function createManager(activeFolder = 'Anima') {
   manager.pageType = 'checkpoints';
   manager.selectedPath = activeFolder;
   manager.pageControls = {
-    pageState: { activeFolder },
+    pageState: { activeFolder, activeFolderRoot: null },
     resetAndReload: vi.fn().mockResolvedValue(undefined),
   };
   manager.updateTreeSelection = vi.fn();
@@ -43,6 +43,7 @@ describe('SidebarManager root folder selection', () => {
 
     expect(manager.selectedPath).toBe('Anima/SDXL');
     expect(manager.pageControls.pageState.activeFolder).toBe('Anima/SDXL');
+    expect(manager.pageControls.pageState.activeFolderRoot).toBeNull();
     expect(getStorageItem('checkpoints_activeFolder')).toBe('Anima/SDXL');
   });
 
@@ -64,6 +65,33 @@ describe('SidebarManager root folder selection', () => {
     manager.restoreSelectedFolder();
 
     expect(manager.selectedPath).toBe('Wan');
+    expect(manager.pageControls.pageState.activeFolder).toBe('Wan');
+  });
+
+  it('maps a drive-prefixed UI folder to its matching model root', async () => {
+    const manager = createManager('');
+    manager.folderSelectionMap = new Map([
+      ['D:/Krea 2', { path: 'Krea 2', root: '/home/leo/models/d/diffusion_models' }],
+    ]);
+
+    await manager.selectFolder('D:/Krea 2');
+
+    expect(manager.selectedPath).toBe('D:/Krea 2');
+    expect(manager.pageControls.pageState.activeFolder).toBe('Krea 2');
+    expect(manager.pageControls.pageState.activeFolderRoot).toBe('/home/leo/models/d/diffusion_models');
+    expect(getStorageItem('checkpoints_activeFolderKey')).toBe('D:/Krea 2');
+  });
+
+  it('restores a drive root as a root-only filter', () => {
+    localStorage.setItem('lora_manager_checkpoints_activeFolder', '');
+    localStorage.setItem('lora_manager_checkpoints_activeFolderRoot', '/mnt/g/models/checkpoints');
+    localStorage.setItem('lora_manager_checkpoints_activeFolderKey', 'G:');
+    const manager = createManager('');
+
+    manager.restoreSelectedFolder();
+
+    expect(manager.selectedPath).toBe('G:');
     expect(manager.pageControls.pageState.activeFolder).toBe('');
+    expect(manager.pageControls.pageState.activeFolderRoot).toBe('/mnt/g/models/checkpoints');
   });
 });

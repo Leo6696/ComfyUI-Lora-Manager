@@ -94,6 +94,7 @@ class BaseModelService(ABC):
         page_size: int,
         sort_by: str = "name",
         folder: str = None,
+        folder_root: str = None,
         folder_include: list = None,
         folder_exclude: list = None,
         search: str = None,
@@ -238,6 +239,7 @@ class BaseModelService(ABC):
             filtered_data = await self._apply_common_filters(
                 sorted_data,
                 folder=folder,
+                folder_root=folder_root,
                 folder_include=folder_include,
                 folder_exclude=folder_exclude,
                 base_models=base_models,
@@ -484,6 +486,7 @@ class BaseModelService(ABC):
         self,
         data: List[Dict],
         folder: str = None,
+        folder_root: str = None,
         folder_include: list = None,
         folder_exclude: list = None,
         base_models: list = None,
@@ -498,6 +501,7 @@ class BaseModelService(ABC):
         normalized_options = self.search_strategy.normalize_options(search_options)
         criteria = FilterCriteria(
             folder=folder,
+            folder_root=folder_root,
             folder_include=folder_include,
             folder_exclude=folder_exclude,
             base_models=base_models,
@@ -909,6 +913,56 @@ class BaseModelService(ABC):
     def get_model_roots(self) -> List[str]:
         """Get model root directories"""
         return self.scanner.get_model_roots()
+
+    @staticmethod
+    def get_drive_label(path: str) -> str:
+        """Resolve Windows and common WSL model paths to a drive-style label."""
+        normalized = (path or "").replace("\\", "/")
+        patterns = (
+            r"^([A-Za-z]):(?:/|$)",
+            r"^/mnt/([A-Za-z])(?:/|$)",
+            r"^/home/[^/]+/models/([A-Za-z])(?:/|$)",
+        )
+        for pattern in patterns:
+            match = re.match(pattern, normalized, re.IGNORECASE)
+            if match:
+                return match.group(1).upper()
+
+        basename = os.path.basename(normalized.rstrip("/"))
+        return basename.upper() if basename else "WSL"
+
+    async def get_folder_entries(self) -> List[Dict[str, str]]:
+        """Return folders without collapsing identical names from different roots."""
+        cache = await self.scanner.get_cached_data()
+        entries: Dict[tuple, Dict[str, str]] = {}
+
+        for item in cache.raw_data or []:
+            folder = (item.get("folder") or "").replace("\\", "/").strip("/")
+            if not folder:
+                continue
+            root = self.scanner._find_root_for_file(item.get("file_path"))
+            if not root:
+                continue
+            normalized_root = os.path.normpath(root)
+            key = (normalized_root, folder)
+            if key in entries:
+                continue
+            drive = self.get_drive_label(normalized_root)
+            entries[key] = {
+                "path": folder,
+                "root": normalized_root,
+                "drive": drive,
+                "label": f"{drive}: {folder}",
+            }
+
+        return sorted(
+            entries.values(),
+            key=lambda entry: (
+                entry["drive"].casefold(),
+                entry["path"].casefold(),
+                entry["root"].casefold(),
+            ),
+        )
 
     def filter_civitai_data(self, data: Dict, minimal: bool = False) -> Dict:
         """Filter relevant fields from CivitAI data"""

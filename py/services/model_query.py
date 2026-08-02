@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import os
 from typing import (
     Any,
     Dict,
@@ -92,6 +93,7 @@ class FilterCriteria:
     """Container for model list filtering options."""
 
     folder: Optional[str] = None
+    folder_root: Optional[str] = None
     folder_include: Optional[Sequence[str]] = None
     folder_exclude: Optional[Sequence[str]] = None
     base_models: Optional[Sequence[str]] = None
@@ -176,10 +178,30 @@ class ModelFilterSet:
 
         folder_duration = 0
         folder = criteria.folder
+        folder_root = criteria.folder_root
         folder_include = criteria.folder_include or []
         folder_exclude = criteria.folder_exclude or []
         options = criteria.search_options or {}
         recursive = bool(options.get("recursive", True))
+
+        if folder_root:
+            t0 = time.perf_counter()
+            normalized_root = os.path.normcase(os.path.abspath(folder_root))
+
+            def belongs_to_root(item: Dict[str, Any]) -> bool:
+                file_path = item.get("file_path")
+                if not file_path:
+                    return False
+                try:
+                    normalized_path = os.path.normcase(os.path.abspath(file_path))
+                    return os.path.commonpath(
+                        [normalized_path, normalized_root]
+                    ) == normalized_root
+                except (OSError, TypeError, ValueError):
+                    return False
+
+            items = [item for item in items if belongs_to_root(item)]
+            folder_duration = time.perf_counter() - t0
 
         # Apply folder exclude filters first
         if folder_exclude:

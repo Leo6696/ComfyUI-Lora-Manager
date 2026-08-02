@@ -73,6 +73,11 @@ function getActiveFolder(pageType) {
     return typeof folder === 'string' && folder.length > 0 ? folder : null;
 }
 
+function getActiveFolderRoot(pageType) {
+    const root = getStorageItem(`${pageType}_activeFolderRoot`);
+    return typeof root === 'string' && root.length > 0 ? root : null;
+}
+
 // Load preview versions from localStorage for each model type
 const loraPreviewVersions = getMapFromStorage('loras_preview_versions');
 const checkpointPreviewVersions = getMapFromStorage('checkpoints_preview_versions');
@@ -94,6 +99,7 @@ export const state = {
             hasMore: true,
             sortBy: 'name',
             activeFolder: getActiveFolder(MODEL_TYPES.LORA),
+            activeFolderRoot: getActiveFolderRoot(MODEL_TYPES.LORA),
             activeLetterFilter: null,
             previewVersions: loraPreviewVersions,
             searchManager: null,
@@ -162,6 +168,7 @@ export const state = {
             hasMore: true,
             sortBy: 'name',
             activeFolder: getActiveFolder(MODEL_TYPES.CHECKPOINT),
+            activeFolderRoot: getActiveFolderRoot(MODEL_TYPES.CHECKPOINT),
             previewVersions: checkpointPreviewVersions,
             searchManager: null,
             searchOptions: {
@@ -200,6 +207,7 @@ export const state = {
             hasMore: true,
             sortBy: 'name',
             activeFolder: getActiveFolder(MODEL_TYPES.EMBEDDING),
+            activeFolderRoot: getActiveFolderRoot(MODEL_TYPES.EMBEDDING),
             activeLetterFilter: null,
             previewVersions: embeddingPreviewVersions,
             searchManager: null,
