@@ -341,6 +341,10 @@ export class SidebarManager {
             return null;
         }
 
+        if (this.resolveFolderSelection(target.dataset.path || '').selectable === false) {
+            return null;
+        }
+
         return target;
     }
 
@@ -1193,21 +1197,30 @@ export class SidebarManager {
         this.treeData = {};
         this.folderSelectionMap = new Map();
         this.foldersList = this.folderEntries.map(entry => {
-            const uiPath = `${entry.drive}:/${entry.path}`;
+            const storage = entry.storage || entry.drive;
+            const category = entry.category || 'models';
+            const storageNode = storage;
+            const categoryPath = `${storageNode}/${category}`;
+            const uiPath = `${categoryPath}/${entry.path}`;
+
+            this.folderSelectionMap.set(storageNode, {
+                path: null,
+                root: null,
+                selectable: false
+            });
+            this.folderSelectionMap.set(categoryPath, { path: '', root: entry.root });
             this.folderSelectionMap.set(uiPath, { path: entry.path, root: entry.root });
 
-            let node = this.treeData;
-            const driveNode = `${entry.drive}:`;
-            node[driveNode] ||= {};
-            this.folderSelectionMap.set(driveNode, { path: '', root: entry.root });
-            node = node[driveNode];
+            this.treeData[storageNode] ||= {};
+            this.treeData[storageNode][category] ||= {};
+            let node = this.treeData[storageNode][category];
 
             const parts = entry.path.split('/').filter(Boolean);
             parts.forEach((part, index) => {
                 node[part] ||= {};
                 const folderPath = parts.slice(0, index + 1).join('/');
                 this.folderSelectionMap.set(
-                    `${driveNode}/${folderPath}`,
+                    `${categoryPath}/${folderPath}`,
                     { path: folderPath, root: entry.root }
                 );
                 node = node[part];
@@ -1350,9 +1363,13 @@ export class SidebarManager {
 
             this.saveExpandedState();
         } else if (nodeContent) {
-            // Select folder
             const treeNode = nodeContent.closest('.sidebar-tree-node');
             const path = treeNode.dataset.path;
+            const selection = this.resolveFolderSelection(path);
+            if (selection.selectable === false) {
+                treeNode.querySelector(':scope > .sidebar-tree-node-content .sidebar-tree-expand-icon')?.click();
+                return;
+            }
             this.selectFolder(path);
         }
     }
@@ -1366,6 +1383,7 @@ export class SidebarManager {
 
         const path = nodeContent.dataset.path;
         if (path === undefined || path === null || path === '') return;
+        if (this.resolveFolderSelection(path).selectable === false) return;
 
         this._showFolderContextMenu(event.clientX, event.clientY, path);
     }
@@ -1480,6 +1498,7 @@ export class SidebarManager {
         const isRoot = path === null || path === undefined || path === '';
         const normalizedPath = isRoot ? '' : path;
         const selection = isRoot ? { path: null, root: null } : this.resolveFolderSelection(normalizedPath);
+        if (selection.selectable === false) return;
         const activeFolder = selection.path;
 
         // Update selected path
@@ -1863,7 +1882,15 @@ export class SidebarManager {
         const activeFolderRoot = getStorageItem(`${this.pageType}_activeFolderRoot`);
         const activeFolderKey = getStorageItem(`${this.pageType}_activeFolderKey`);
         if ((typeof activeFolder === 'string' && activeFolder.length > 0) || activeFolderRoot) {
-            this.selectedPath = activeFolderKey || activeFolder;
+            const restoredEntry = Array.from(this.folderSelectionMap?.entries() || []).find(
+                ([, selection]) =>
+                    selection.path === (activeFolder ?? '') &&
+                    selection.root === activeFolderRoot
+            );
+            const activeFolderKeyIsCurrent =
+                activeFolderKey &&
+                (!this.folderSelectionMap || this.folderSelectionMap.has(activeFolderKey));
+            this.selectedPath = restoredEntry?.[0] || (activeFolderKeyIsCurrent ? activeFolderKey : activeFolder);
             if (this.pageControls?.pageState) {
                 this.pageControls.pageState.activeFolder = activeFolder ?? '';
                 this.pageControls.pageState.activeFolderRoot = activeFolderRoot || null;

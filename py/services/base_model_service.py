@@ -915,21 +915,37 @@ class BaseModelService(ABC):
         return self.scanner.get_model_roots()
 
     @staticmethod
-    def get_drive_label(path: str) -> str:
-        """Resolve Windows and common WSL model paths to a drive-style label."""
+    def get_storage_label(path: str) -> str:
+        """Resolve a model path to a stable storage label for display."""
         normalized = (path or "").replace("\\", "/")
+        candidates = [normalized]
+        if normalized.startswith("/"):
+            resolved = os.path.realpath(normalized).replace("\\", "/")
+            if resolved != normalized:
+                candidates.insert(0, resolved)
+
         patterns = (
             r"^([A-Za-z]):(?:/|$)",
             r"^/mnt/([A-Za-z])(?:/|$)",
             r"^/home/[^/]+/models/([A-Za-z])(?:/|$)",
+            r"^/(ai\d*)(?:/|$)",
         )
-        for pattern in patterns:
-            match = re.match(pattern, normalized, re.IGNORECASE)
-            if match:
-                return match.group(1).upper()
+        for candidate in candidates:
+            for pattern in patterns:
+                match = re.match(pattern, candidate, re.IGNORECASE)
+                if match:
+                    return match.group(1).upper()
 
         basename = os.path.basename(normalized.rstrip("/"))
         return basename.upper() if basename else "WSL"
+
+    get_drive_label = get_storage_label
+
+    @staticmethod
+    def get_root_category(path: str) -> str:
+        """Return the configured model category represented by a root path."""
+        normalized = (path or "").replace("\\", "/").rstrip("/")
+        return normalized.rsplit("/", 1)[-1] if normalized else "models"
 
     async def get_folder_entries(self) -> List[Dict[str, str]]:
         """Return folders without collapsing identical names from different roots."""
@@ -947,18 +963,22 @@ class BaseModelService(ABC):
             key = (normalized_root, folder)
             if key in entries:
                 continue
-            drive = self.get_drive_label(normalized_root)
+            storage = self.get_storage_label(normalized_root)
+            category = self.get_root_category(normalized_root)
             entries[key] = {
                 "path": folder,
                 "root": normalized_root,
-                "drive": drive,
-                "label": f"{drive}: {folder}",
+                "drive": storage,
+                "storage": storage,
+                "category": category,
+                "label": f"{storage} / {category}: {folder}",
             }
 
         return sorted(
             entries.values(),
             key=lambda entry: (
-                entry["drive"].casefold(),
+                entry["storage"].casefold(),
+                entry["category"].casefold(),
                 entry["path"].casefold(),
                 entry["root"].casefold(),
             ),

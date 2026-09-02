@@ -57,34 +57,44 @@ class FolderScanner:
         (r"D:\\models\\checkpoints", "D"),
         ("/mnt/g/models/loras", "G"),
         ("/home/leo/models/d/diffusion_models", "D"),
+        ("/ai/models/comfyui/loras", "AI"),
+        ("/ai2/models/comfyui/diffusion_models", "AI2"),
+        ("/ai3/models/comfyui/checkpoints", "AI3"),
     ],
 )
-def test_get_drive_label_supports_windows_and_wsl_paths(path, expected):
-    assert BaseModelService.get_drive_label(path) == expected
+def test_get_storage_label_supports_windows_wsl_and_server_paths(path, expected):
+    assert BaseModelService.get_storage_label(path) == expected
 
 
 @pytest.mark.asyncio
-async def test_get_folder_entries_keeps_same_folder_from_different_drives():
+async def test_get_folder_entries_keeps_same_folder_from_different_storage_categories():
     roots = [
-        "/home/leo/models/d/diffusion_models",
-        "/mnt/g/models/diffusion_models",
+        "/ai2/models/comfyui/diffusion_models",
+        "/ai3/models/comfyui/checkpoints",
+        "/ai3/models/comfyui/diffusion_models",
     ]
     scanner = FolderScanner(
         roots,
         [
             {"folder": "Krea 2", "file_path": f"{roots[0]}/Krea 2/a.safetensors"},
             {"folder": "Krea 2", "file_path": f"{roots[1]}/Krea 2/b.safetensors"},
+            {"folder": "Krea 2", "file_path": f"{roots[2]}/Krea 2/c.safetensors"},
         ],
     )
     service = DummyService("checkpoint", scanner, BaseModelMetadata)
 
     entries = await service.get_folder_entries()
 
-    assert [(entry["drive"], entry["path"]) for entry in entries] == [
-        ("D", "Krea 2"),
-        ("G", "Krea 2"),
+    assert [
+        (entry["storage"], entry["category"], entry["path"])
+        for entry in entries
+    ] == [
+        ("AI2", "diffusion_models", "Krea 2"),
+        ("AI3", "checkpoints", "Krea 2"),
+        ("AI3", "diffusion_models", "Krea 2"),
     ]
-    assert entries[0]["label"] == "D: Krea 2"
+    assert entries[0]["drive"] == "AI2"
+    assert entries[0]["label"] == "AI2 / diffusion_models: Krea 2"
 
 
 def test_minimal_civitai_data_keeps_publication_timestamps():

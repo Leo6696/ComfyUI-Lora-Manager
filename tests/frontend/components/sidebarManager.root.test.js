@@ -94,4 +94,75 @@ describe('SidebarManager root folder selection', () => {
     expect(manager.pageControls.pageState.activeFolder).toBe('');
     expect(manager.pageControls.pageState.activeFolderRoot).toBe('/mnt/g/models/checkpoints');
   });
+  it('builds separate storage and category branches for duplicate folder names', () => {
+
+    const manager = createManager('');
+    manager.folderEntries = [
+      {
+        path: 'Krea 2',
+        root: '/ai2/models/comfyui/diffusion_models',
+        drive: 'AI2',
+        storage: 'AI2',
+        category: 'diffusion_models',
+      },
+      {
+        path: 'Krea 2',
+        root: '/ai3/models/comfyui/diffusion_models',
+        drive: 'AI3',
+        storage: 'AI3',
+        category: 'diffusion_models',
+      },
+    ];
+
+    manager.buildDriveAwareFolderData();
+
+    expect(manager.treeData).toEqual({
+      AI2: { diffusion_models: { 'Krea 2': {} } },
+      AI3: { diffusion_models: { 'Krea 2': {} } },
+    });
+    expect(manager.folderSelectionMap.get('AI2/diffusion_models/Krea 2')).toEqual({
+      path: 'Krea 2',
+      root: '/ai2/models/comfyui/diffusion_models',
+    });
+    expect(manager.folderSelectionMap.get('AI3/diffusion_models/Krea 2')).toEqual({
+      path: 'Krea 2',
+      root: '/ai3/models/comfyui/diffusion_models',
+    });
+    expect(manager.folderSelectionMap.get('AI2').selectable).toBe(false);
+  });
+
+  it('migrates an old display key by matching the stored path and root', () => {
+    localStorage.setItem('lora_manager_checkpoints_activeFolder', 'Illustrious');
+    localStorage.setItem(
+      'lora_manager_checkpoints_activeFolderRoot',
+      '/ai3/models/comfyui/checkpoints',
+    );
+    localStorage.setItem(
+      'lora_manager_checkpoints_activeFolderKey',
+      'CHECKPOINTS:/Illustrious',
+    );
+    const manager = createManager('');
+    manager.folderSelectionMap = new Map([
+      [
+        'AI3/checkpoints/Illustrious',
+        { path: 'Illustrious', root: '/ai3/models/comfyui/checkpoints' },
+      ],
+    ]);
+
+    manager.restoreSelectedFolder();
+
+    expect(manager.selectedPath).toBe('AI3/checkpoints/Illustrious');
+  });
+
+  it('does not select a storage-only grouping node', async () => {
+    const manager = createManager('');
+    manager.folderSelectionMap = new Map([
+      ['AI3', { path: null, root: null, selectable: false }],
+    ]);
+
+    await manager.selectFolder('AI3');
+
+    expect(manager.pageControls.resetAndReload).not.toHaveBeenCalled();
+    expect(manager.selectedPath).toBe('');
+  });
 });
