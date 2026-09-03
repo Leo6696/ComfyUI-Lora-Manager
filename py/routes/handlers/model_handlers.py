@@ -1201,8 +1201,10 @@ class ModelQueryHandler:
         try:
             cache = await self._service.scanner.get_cached_data()
             folder_entries = await self._service.get_folder_entries()
+            root_entries = self._service.get_model_root_entries()
             return web.json_response(
-                {"folders": cache.folders, "folder_entries": folder_entries}
+                {"folders": cache.folders, "folder_entries": folder_entries,
+                 "root_entries": root_entries}
             )
         except Exception as exc:
             self._logger.error("Error getting folders: %s", exc)

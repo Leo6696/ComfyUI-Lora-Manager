@@ -1174,7 +1174,20 @@ export class SidebarManager {
     async loadFolderTree() {
         try {
             const response = await this.apiClient.fetchModelFolders();
-            this.folderEntries = response.folder_entries || [];
+            const folderEntries = response.folder_entries || [];
+            const rootEntries = response.root_entries || [];
+            const populatedRoots = new Set(folderEntries.map(entry => entry.root));
+            const emptyRootEntries = rootEntries
+                .filter(root => !populatedRoots.has(root.path))
+                .map(root => ({
+                    path: '',
+                    root: root.path,
+                    drive: root.storage,
+                    storage: root.storage,
+                    category: root.category,
+                    label: root.label,
+                }));
+            this.folderEntries = [...folderEntries, ...emptyRootEntries];
 
             if (this.folderEntries.length > 0) {
                 this.buildDriveAwareFolderData();
