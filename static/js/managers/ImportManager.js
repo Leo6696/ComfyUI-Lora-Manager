@@ -244,8 +244,12 @@ export class ImportManager {
             // Fetch LoRA roots
             const rootsData = await this.apiClient.fetchModelRoots();
             const loraRoot = document.getElementById('importLoraRoot');
-            loraRoot.innerHTML = rootsData.roots.map(root =>
-                `<option value="${root}">${root}</option>`
+            const rootEntries = rootsData.root_entries || rootsData.roots.map(path => ({
+                path,
+                label: path,
+            }));
+            loraRoot.innerHTML = rootEntries.map(root =>
+                `<option value="${root.path}" title="${root.path}">${root.label}</option>`
             ).join('');
 
             // Set default root if available

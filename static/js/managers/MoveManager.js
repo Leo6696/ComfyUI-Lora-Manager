@@ -41,6 +41,9 @@ class MoveManager {
 
         // Initialize model root directory selector
         modelRootSelect.addEventListener('change', async () => {
+            if (this.rootSelectionKey) {
+                setStorageItem(this.rootSelectionKey, modelRootSelect.value);
+            }
             await this.initializeFolderTree();
             this.updateTargetPath();
         });
@@ -157,17 +160,25 @@ class MoveManager {
                 throw new Error(`No ${modelConfig.displayName.toLowerCase()} roots found`);
             }
 
-            // Populate model root selector
-            modelRootSelect.innerHTML = rootsData.roots.map(root =>
-                `<option value="${root}">${root}</option>`
+            // Display physical storage identity while retaining the configured path.
+            const rootEntries = rootsData.root_entries || rootsData.roots.map(path => ({
+                path,
+                label: path,
+            }));
+            modelRootSelect.innerHTML = rootEntries.map(root =>
+                `<option value="${root.path}" title="${root.path}">${root.label}</option>`
             ).join('');
 
-            // Set default root if available
+            const rootSelectionKey = `move_model_root_${apiClient.modelType}`;
+            const savedRoot = getStorageItem(rootSelectionKey, null);
             const settingsKey = `default_${currentPageType.slice(0, -1)}_root`;
             const defaultRoot = state.global.settings[settingsKey];
-            if (defaultRoot && rootsData.roots.includes(defaultRoot)) {
+            if (savedRoot && rootsData.roots.includes(savedRoot)) {
+                modelRootSelect.value = savedRoot;
+            } else if (defaultRoot && rootsData.roots.includes(defaultRoot)) {
                 modelRootSelect.value = defaultRoot;
             }
+            this.rootSelectionKey = rootSelectionKey;
 
             // Store roots for path calculations
             this.modelRoots = rootsData.roots || [];
@@ -231,16 +242,17 @@ class MoveManager {
         const manualSelection = document.getElementById('moveManualPathSelection');
         if (!manualSelection) return;
 
+        const manualControls = manualSelection.querySelectorAll('input, button');
         if (this.useDefaultPath) {
             manualSelection.classList.add('disabled');
-            // Disable all inputs and buttons inside manualSelection
-            manualSelection.querySelectorAll('input, select, button').forEach(el => {
+            // Keep the storage root selectable; only disable manual subfolder controls.
+            manualControls.forEach(el => {
                 el.disabled = true;
                 el.tabIndex = -1;
             });
         } else {
             manualSelection.classList.remove('disabled');
-            manualSelection.querySelectorAll('input, select, button').forEach(el => {
+            manualControls.forEach(el => {
                 el.disabled = false;
                 el.tabIndex = 0;
             });

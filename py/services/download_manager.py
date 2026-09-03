@@ -1350,41 +1350,29 @@ class DownloadManager:
                             "error": "Model version already exists in embedding library",
                         }
 
-            # Handle use_default_paths
+            # Automatic organization applies below the selected root. Only callers
+            # without a root fall back to the configured default root.
             if use_default_paths:
                 settings_manager = get_settings_manager()
-                # Set save_dir based on model type
-                if model_type == "checkpoint":
-                    if is_diffusion_model:
-                        default_path = settings_manager.get("default_unet_root")
-                        error_msg = "Default unet root path not set in settings"
+                if not save_dir:
+                    if model_type == "checkpoint":
+                        if is_diffusion_model:
+                            default_path = settings_manager.get("default_unet_root")
+                            error_msg = "Default unet root path not set in settings"
+                        else:
+                            default_path = settings_manager.get("default_checkpoint_root")
+                            error_msg = "Default checkpoint root path not set in settings"
+                    elif model_type == "lora":
+                        default_path = settings_manager.get("default_lora_root")
+                        error_msg = "Default lora root path not set in settings"
                     else:
-                        default_path = settings_manager.get("default_checkpoint_root")
-                        error_msg = "Default checkpoint root path not set in settings"
+                        default_path = settings_manager.get("default_embedding_root")
+                        error_msg = "Default embedding root path not set in settings"
+
                     if not default_path:
-                        return {
-                            "success": False,
-                            "error": error_msg,
-                        }
-                    save_dir = default_path
-                elif model_type == "lora":
-                    default_path = settings_manager.get("default_lora_root")
-                    if not default_path:
-                        return {
-                            "success": False,
-                            "error": "Default lora root path not set in settings",
-                        }
-                    save_dir = default_path
-                elif model_type == "embedding":
-                    default_path = settings_manager.get("default_embedding_root")
-                    if not default_path:
-                        return {
-                            "success": False,
-                            "error": "Default embedding root path not set in settings",
-                        }
+                        return {"success": False, "error": error_msg}
                     save_dir = default_path
 
-                # Calculate relative path using template
                 relative_path = self._calculate_relative_path(version_info, model_type)
 
             # Update save directory with relative path if provided

@@ -911,8 +911,43 @@ class BaseModelService(ABC):
         return await self.scanner.get_model_info_by_name(name)
 
     def get_model_roots(self) -> List[str]:
-        """Get model root directories"""
+        """Get model root directories."""
         return self.scanner.get_model_roots()
+
+    def get_model_root_entries(self) -> List[Dict[str, str]]:
+        """Return display metadata for configured roots without changing paths."""
+        entries: List[Dict[str, str]] = []
+        seen: set[str] = set()
+
+        for root in self.get_model_roots():
+            normalized_root = os.path.normpath(root)
+            if not normalized_root or normalized_root in seen:
+                continue
+            seen.add(normalized_root)
+
+            real_root = os.path.realpath(normalized_root)
+            storage = self.get_storage_label(real_root)
+            category = self.get_root_category(real_root)
+            entries.append(
+                {
+                    "path": normalized_root,
+                    "real_path": real_root,
+                    "storage": storage,
+                    "category": category,
+                    "label": f"{storage} / {category}",
+                }
+            )
+
+        duplicate_labels = {
+            entry["label"]
+            for entry in entries
+            if sum(candidate["label"] == entry["label"] for candidate in entries) > 1
+        }
+        for entry in entries:
+            if entry["label"] in duplicate_labels:
+                entry["label"] = f"{entry['label']} — {entry['path']}"
+
+        return entries
 
     @staticmethod
     def get_storage_label(path: str) -> str:

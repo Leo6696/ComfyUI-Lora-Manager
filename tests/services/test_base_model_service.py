@@ -163,6 +163,21 @@ class StubSearchStrategy:
         return list(self.search_result)
 
 
+def test_get_model_root_entries_preserve_business_paths_and_identify_storage():
+    roots = [
+        "/home/leo/ComfyUI/models/loras",
+        "/ai2/models/comfyui/loras",
+        "/ai3/models/comfyui/loras",
+    ]
+    service = DummyService("lora", FolderScanner(roots, []), BaseModelMetadata)
+
+    entries = service.get_model_root_entries()
+
+    assert [entry["path"] for entry in entries] == roots
+    assert [entry["storage"] for entry in entries] == ["AI", "AI2", "AI3"]
+    assert all(entry["category"] == "loras" for entry in entries)
+
+
 class StubUpdateService:
     def __init__(self, decisions, *, bulk_error: bool = False):
         self.decisions = dict(decisions)

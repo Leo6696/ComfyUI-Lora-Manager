@@ -163,6 +163,13 @@ Available for LoRAs, checkpoints, and embeddings.
 - Resolve symlinked primary model roots to their actual storage label while preserving the original path for model operations.
 - Keep identical relative folder names from separate roots distinct and migrate saved selections by relative path and root.
 
+### 6. Storage-aware download and move targets
+
+- Download, move, and recipe-import selectors list ComfyUI-registered roots as `AI / loras`, `AI2 / loras`, and `AI3 / loras` instead of ambiguous raw paths.
+- Selecting a root always keeps the exact registered path for file operations; storage labels are display-only.
+- The chosen target is remembered separately for download and move operations.
+- With automatic organization enabled, the plugin creates its subfolder beneath the selected root; it no longer silently sends the file to another default disk.
+
 ### Installation
 
 Fresh installation:

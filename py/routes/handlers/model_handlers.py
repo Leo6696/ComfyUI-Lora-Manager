@@ -1184,7 +1184,10 @@ class ModelQueryHandler:
     async def get_model_roots(self, request: web.Request) -> web.Response:
         try:
             roots = self._service.get_model_roots()
-            return web.json_response({"success": True, "roots": roots})
+            root_entries = self._service.get_model_root_entries()
+            return web.json_response(
+                {"success": True, "roots": roots, "root_entries": root_entries}
+            )
         except Exception as exc:
             self._logger.error(
                 "Error getting %s roots: %s",

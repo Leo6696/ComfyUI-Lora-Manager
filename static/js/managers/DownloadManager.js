@@ -802,19 +802,24 @@ export class DownloadManager {
                 rootsData = await this.apiClient.fetchModelRoots();
             }
             const modelRoot = document.getElementById('modelRoot');
-            modelRoot.innerHTML = rootsData.roots.map(root =>
-                `<option value="${root}">${root}</option>`
+            const rootEntries = rootsData.root_entries || rootsData.roots.map(path => ({
+                path,
+                label: path,
+            }));
+            modelRoot.innerHTML = rootEntries.map(root =>
+                `<option value="${root.path}" title="${root.path}">${root.label}</option>`
             ).join('');
 
             const singularType = this._isDiffusionModel
                 ? 'unet'
                 : this.apiClient.modelType.replace(/s$/, '');
+            const savedRootKey = `download_model_root_${singularType}`;
+            const savedRoot = getStorageItem(savedRootKey, null);
             const defaultRootKey = `default_${singularType}_root`;
             const defaultRoot = state.global.settings[defaultRootKey];
-            console.log(`Default root for ${singularType}:`, defaultRoot);
-            console.log('Available roots:', rootsData.roots);
-            if (defaultRoot && rootsData.roots.includes(defaultRoot)) {
-                console.log(`Setting default root: ${defaultRoot}`);
+            if (savedRoot && rootsData.roots.includes(savedRoot)) {
+                modelRoot.value = savedRoot;
+            } else if (defaultRoot && rootsData.roots.includes(defaultRoot)) {
                 modelRoot.value = defaultRoot;
             }
 
@@ -839,8 +844,9 @@ export class DownloadManager {
                 }
             });
 
-            // Setup model root change handler
+            // Persist the chosen storage root independently from auto organization.
             modelRoot.addEventListener('change', async () => {
+                setStorageItem(savedRootKey, modelRoot.value);
                 await this.initializeFolderTree();
                 this.updateTargetPath();
             });
@@ -1135,16 +1141,17 @@ export class DownloadManager {
 
         // Always show manual path selection, but disable/enable based on useDefaultPath
         manualSelection.style.display = 'block';
+        const manualControls = manualSelection.querySelectorAll('input, button');
         if (this.useDefaultPath) {
             manualSelection.classList.add('disabled');
-            // Disable all inputs and buttons inside manualSelection
-            manualSelection.querySelectorAll('input, select, button').forEach(el => {
+            // Keep the storage root selectable; only disable manual subfolder controls.
+            manualControls.forEach(el => {
                 el.disabled = true;
                 el.tabIndex = -1;
             });
         } else {
             manualSelection.classList.remove('disabled');
-            manualSelection.querySelectorAll('input, select, button').forEach(el => {
+            manualControls.forEach(el => {
                 el.disabled = false;
                 el.tabIndex = 0;
             });
