@@ -963,12 +963,15 @@ class BaseModelService(ABC):
             r"^([A-Za-z]):(?:/|$)",
             r"^/mnt/([A-Za-z])(?:/|$)",
             r"^/home/[^/]+/models/([A-Za-z])(?:/|$)",
+            r"^/data/downloads(?:/|$)",
             r"^/(ai\d*)(?:/|$)",
         )
         for candidate in candidates:
             for pattern in patterns:
                 match = re.match(pattern, candidate, re.IGNORECASE)
                 if match:
+                    if pattern.startswith("^/data/downloads"):
+                        return "STAGING"
                     return match.group(1).upper()
 
         basename = os.path.basename(normalized.rstrip("/"))

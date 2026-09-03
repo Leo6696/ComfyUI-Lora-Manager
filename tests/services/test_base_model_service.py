@@ -60,6 +60,7 @@ class FolderScanner:
         ("/ai/models/comfyui/loras", "AI"),
         ("/ai2/models/comfyui/diffusion_models", "AI2"),
         ("/ai3/models/comfyui/checkpoints", "AI3"),
+        ("/data/downloads/lora", "STAGING"),
     ],
 )
 def test_get_storage_label_supports_windows_wsl_and_server_paths(path, expected):
